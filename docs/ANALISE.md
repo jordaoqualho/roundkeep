@@ -1,89 +1,89 @@
-# Análise do Improved Initiative e implementação do RoundKeep
+# Improved Initiative analysis and RoundKeep implementation
 
-Inspeção em 18 de setembro de 2026. Referência: https://improvedinitiative.app/e/.
+Inspection on September 18, 2026. Reference: https://improvedinitiative.app/e/.
 
-## Evidências consultadas
+## Evidence reviewed
 
-- HTML servido pela produção: pacote `/js/ImprovedInitiative.3.17.1.js` (2.109.232 bytes), CSS versionado, manifest e configuração `environmentJSON` com contexto de encontro e estado de autenticação.
-- Bundle público de produção: confirma LocalForage, IndexedDB, armazenamento legado, carregamento de fontes Open5e e Socket.IO. Não foi localizada referência a `serviceWorker` nesse bundle.
-- Repositório público https://github.com/cynicaloptimist/improved-initiative, branch `development`, cujo `package.json` indicava 3.17.2. Essa branch não é idêntica ao build 3.17.1 em produção; os achados de código são diferenciados dos endpoints efetivamente consultados.
-- Interface real da aba aberta no Chrome: biblioteca, criaturas personalizadas, personagens, controles de encontro, configurações e exportação de dados locais.
-- Exportação feita pela própria interface, em Settings → Account → Export. Backup completo preservado em `private-data/improved-initiative.json`, fora do Git e do build.
-- GET real de `/open5e/`: HTTP 200, JSON com 10 fontes de criaturas e 8 fontes de magias; `cache-control: private`, `cf-cache-status: DYNAMIC`, `ETag` presente.
-- GET real de `https://api.open5e.com/v2/creatures/?document__key=srd-2024&limit=1000`: 331 registros, sem página seguinte.
+- Production HTML: bundle `/js/ImprovedInitiative.3.17.1.js` (2,109,232 bytes), versioned CSS, manifest, and `environmentJSON` configuration with encounter context and auth state.
+- Public production bundle: confirms LocalForage, IndexedDB, legacy storage, Open5e source loading, and Socket.IO. No `serviceWorker` reference was found in that bundle.
+- Public repository https://github.com/cynicaloptimist/improved-initiative, `development` branch, whose `package.json` indicated 3.17.2. That branch is not identical to the 3.17.1 production build; code findings are distinguished from endpoints actually queried.
+- Live Chrome tab: library, custom creatures, characters, encounter controls, settings, and local data export.
+- Export from the original UI via Settings → Account → Export. Full backup preserved in `private-data/improved-initiative.json`, outside Git and the build.
+- Real GET to `/open5e/`: HTTP 200, JSON with 10 creature sources and 8 spell sources; `cache-control: private`, `cf-cache-status: DYNAMIC`, `ETag` present.
+- Real GET to `https://api.open5e.com/v2/creatures/?document__key=srd-2024&limit=1000`: 331 records, no next page.
 
-Não foi feita uma captura HAR exaustiva de todas as ações nem acesso ao banco de dados do servidor. O relatório não confunde inspeção de código com tráfego observado.
+No exhaustive HAR capture of every action or server database access was performed. This report does not conflate code inspection with observed traffic.
 
-## Arquitetura observada
+## Observed architecture
 
-O frontend original combina React, Knockout, TypeScript, LESS e Webpack. O backend público usa Express; os módulos do repositório incluem MongoDB para contas e Redis opcional para sessões e distribuição Socket.IO. A configuração de infraestrutura efetivamente usada em produção não é pública.
+The original frontend combines React, Knockout, TypeScript, LESS, and Webpack. The public backend uses Express; repository modules include MongoDB for accounts and optional Redis for sessions and Socket.IO distribution. The infrastructure configuration actually used in production is not public.
 
-| Rota ou transporte                                          | Função encontrada no código                                                                              |
+| Route or transport | Function found in code |
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `GET /statblocks/`, `/statblocks/:id`                       | Índice de criaturas básicas e ficha individual                                                           |
-| `GET /spells/`, `/spells/:id`                               | Índice e ficha de magia                                                                                  |
-| `GET /open5e/`                                              | Fontes habilitáveis de criaturas e magias; resposta verificada                                           |
-| `GET /open5e/:fonte/`                                       | Metadados de criaturas agrupados por documento                                                           |
-| `GET /open5e-spells/:fonte/`                                | Metadados de magias por documento                                                                        |
-| Open5e `/v2/creatures/:key/`, `/v1/spells/:slug/`           | Detalhes remotos, solicitados quando a ficha é usada                                                     |
-| `/my`, `/my/fullaccount`, `/my/settings`, `/my/:tipo/`      | Conta, configurações e sincronização autenticada                                                         |
-| `GET /playerviews/:id`                                      | Estado inicial da visão dos jogadores                                                                    |
-| Socket.IO                                                   | `join encounter`, `update encounter`, `encounter updated`, `update settings`, sugestões de dano/condição |
-| `/importencounter/`, `/launchencounter/`, `/encounterfrom/` | Importação e abertura de encontros                                                                       |
+| `GET /statblocks/`, `/statblocks/:id` | Basic creature index and individual stat block |
+| `GET /spells/`, `/spells/:id` | Spell index and spell sheet |
+| `GET /open5e/` | Enableable creature and spell sources; response verified |
+| `GET /open5e/:source/` | Creature metadata grouped by document |
+| `GET /open5e-spells/:source/` | Spell metadata by document |
+| Open5e `/v2/creatures/:key/`, `/v1/spells/:slug/` | Remote details, requested when a stat block is used |
+| `/my`, `/my/fullaccount`, `/my/settings`, `/my/:type/` | Account, settings, and authenticated sync |
+| `GET /playerviews/:id` | Initial player view state |
+| Socket.IO | `join encounter`, `update encounter`, `encounter updated`, `update settings`, damage/condition suggestions |
+| `/importencounter/`, `/launchencounter/`, `/encounterfrom/` | Encounter import and launch |
 
-Arquivos relevantes: `client/Library/Listing.ts`, `client/Library/Libraries.ts`, `client/Utility/Store.ts`, `client/Utility/LegacySynchronousLocalStore.ts`, `client/Combatant/Combatant.ts`, `server/configureOpen5eContent.ts`, `server/configureBasicRulesContent.ts`, `server/storageroutes.ts`, `server/sockets.ts`.
+Relevant files: `client/Library/Listing.ts`, `client/Library/Libraries.ts`, `client/Utility/Store.ts`, `client/Utility/LegacySynchronousLocalStore.ts`, `client/Combatant/Combatant.ts`, `server/configureOpen5eContent.ts`, `server/configureBasicRulesContent.ts`, `server/storageroutes.ts`, `server/sockets.ts`.
 
-## Cache não é uma única camada
+## Cache is not a single layer
 
-1. **Memória do servidor:** índices Open5e são carregados e agrupados por fonte na inicialização.
-2. **Memória da página:** `Listing` guarda a ficha já carregada em um observable; isso evita novas consultas naquela instância, mas não garante persistência offline.
-3. **LocalForage:** bancos `Creatures`, `Spells`, `PersistentCharacters` e `SavedEncounters` usam IndexedDB, com mecanismos de fallback da biblioteca.
-4. **localStorage legado:** chaves `ImprovedInitiative.*` incluem preferências, índices e autosave do encontro.
-5. **HTTP/CDN:** o endpoint de fontes observado usa cache privado e ETag; não foi servido como cache público de CDN nessa requisição.
+1. **Server memory:** Open5e indexes are loaded and grouped by source at startup.
+2. **Page memory:** `Listing` keeps the loaded stat block in an observable; this avoids new queries in that instance but does not guarantee offline persistence.
+3. **LocalForage:** `Creatures`, `Spells`, `PersistentCharacters`, and `SavedEncounters` databases use IndexedDB, with library fallback mechanisms.
+4. **Legacy localStorage:** `ImprovedInitiative.*` keys include preferences, indexes, and encounter autosave.
+5. **HTTP/CDN:** the observed sources endpoint uses private cache and ETag; it was not served as public CDN cache on that request.
 
-A exportação pessoal continha 9 criaturas e 4 personagens persistentes. O encontro autosalvo estava vazio. A fonte de criaturas habilitada era `srd-2024`; a de magias, `wotc-srd`. Não havia magias pessoais nem encontros salvos com combatentes no snapshot.
+The personal export contained 9 creatures and 4 persistent characters. The autosaved encounter was empty. The enabled creature source was `srd-2024`; the spell source, `wotc-srd`. There were no personal spells or saved encounters with combatants in the snapshot.
 
-O backup original permanece integral, inclusive configurações e campos que não possuem controle equivalente no novo produto. A migração para controles novos não significa equivalência de todas as preferências antigas.
+The original backup remains intact, including settings and fields with no equivalent control in the new product. Migration to new controls does not mean equivalence for all legacy preferences.
 
-## Implementação entregue
+## Delivered implementation
 
-O RoundKeep tem frontend TypeScript próprio, Vite e ícones Lucide. O backend local Node serve o build, fornece o bootstrap privado somente em loopback e oferece ETags para arquivos. O combate não depende de chamadas remotas durante a sessão.
+RoundKeep has its own TypeScript frontend, Vite, and Lucide icons. The local Node backend serves the build, provides private bootstrap on loopback only, and offers ETags for files. Combat does not depend on remote calls during a session.
 
-- 331 criaturas SRD 2024 via Open5e, com ações, ações bônus, reações, ações lendárias, salvaguardas, perícias e defesas.
-- 319 magias do catálogo básico distribuído pelo Improved Initiative.
-- Biblioteca pessoal importada; campos e textos das fichas preservados. Bônus de iniciativa convertido: o original soma modificador de Destreza e bônus adicional; o modelo novo guarda o bônus total.
-- Pesquisa sem distinção de acentos, filtro por origem, fichas detalhadas, criação/edição de criaturas e magias, editor de ações e atributos.
-- Turnos e rodadas, iniciativa editável, rolagem, PV temporários antes do dano, cura limitada ao máximo, condições, reação, ocultação e duplicação.
-- Histórico, desfazer ações do encontro, notas privadas, encontros salvos, importação validada com revisão, backup exportável e preservação do original.
-- IndexedDB `roundkeep`, store `data`: `state`, catálogo versionado e snapshot `before-import`. Migração automática de bancos legados `patron`.
-- Service worker de produção: shell, assets locais e catálogos. A versão do cache é derivada do build e dos catálogos. O endpoint privado `/api/bootstrap` nunca entra no cache do service worker.
-- Visão de jogadores por BroadcastChannel no mesmo navegador/dispositivo; apenas projeção pública do encontro é enviada.
+- 331 SRD 2024 creatures via Open5e, with actions, bonus actions, reactions, legendary actions, saves, skills, and defenses.
+- 319 spells from the basic catalog distributed by Improved Initiative.
+- Imported personal library; stat block fields and text preserved. Initiative bonus converted: the original sums Dexterity modifier and additional bonus; the new model stores the total bonus.
+- Accent-insensitive search, source filter, detailed stat blocks, creature and spell create/edit, action and ability editor.
+- Turns and rounds, editable initiative, rolling, temporary HP before damage, healing capped at maximum, conditions, reaction, hide, and duplicate.
+- History, undo encounter actions, private notes, saved encounters, validated import with review, exportable backup, and original preservation.
+- IndexedDB `roundkeep`, store `data`: `state`, versioned catalog, and `before-import` snapshot. Automatic migration from legacy `patron` databases.
+- Production service worker: shell, local assets, and catalogs. Cache version is derived from the build and catalogs. Private `/api/bootstrap` never enters the service worker cache.
+- Player view via BroadcastChannel in the same browser/device; only public encounter projection is sent.
 
-A UI mantém a biblioteca, a ordem de combate e a ficha em áreas distintas. Nomes de ações ficam explícitos, há foco visível, diálogos nativos, contraste por estado e layout adaptado a celular.
+The UI keeps the library, combat order, and stat block in separate areas. Action names are explicit, focus is visible, native dialogs are used, state contrast is clear, and the layout adapts to mobile.
 
-## Limites explícitos
+## Explicit limits
 
-- Não inclui autenticação Patreon, sincronização de conta em nuvem ou sala remota multiusuário. A visão dos jogadores é local.
-- Conteúdo de regras preserva o idioma da fonte; a interface está em português.
-- Condições são marcadores manuais; não há expiração automática por rodada nem motor que aplique regras de todas as condições.
-- O catálogo offline é uma fotografia da fonte na data da análise. Não baixa automaticamente todos os livros adicionais do Open5e.
-- O importador suporta os tipos presentes no backup observado e backups no esquema documentado; exportações XML/DnDAppFile não são suportadas.
-- Configurações originais e campos sem equivalente permanecem no backup integral; não são executados automaticamente.
-- A visão dos jogadores oculta dados na apresentação, mas não constitui uma fronteira de segurança entre pessoas que compartilham o mesmo perfil do navegador.
+- No Patreon auth, cloud account sync, or multi-user remote room. Player view is local.
+- Rule content keeps the source language; the interface is in English.
+- Conditions are manual markers; no automatic round expiration or engine applying all condition rules.
+- The offline catalog is a snapshot of the source on the analysis date. It does not automatically download all additional Open5e books.
+- The importer supports types present in the observed backup and documented schema backups; XML/DnDAppFile exports are not supported.
+- Original settings and fields without equivalents remain in the full backup; they are not executed automatically.
+- Player view hides data in presentation but is not a security boundary between people sharing the same browser profile.
 
-## Verificação realizada
+## Verification performed
 
-- Build TypeScript + Vite de produção.
-- 11 testes automatizados: PV, cura, temporários, turno/rodada, empates, remoção ativa, dados, validação de importações, catálogo completo, preservação das fichas pessoais e exclusão do backup do build.
-- Chrome real: biblioteca importada, adição dos quatro heróis e de uma criatura personalizada, início do combate, dano de 15 reduzindo 112 → 97, marcador Envenenado e persistência de ambos após recarregar.
-- Visão dos jogadores: estado público correto e mudança de turno sincronizada para Underfoot; notas, CA e PV exatos não aparecem.
-- Servidor encerrado: recarregamento por service worker manteve a aplicação e o encontro acessíveis, com estado salvo.
-- Layout de desktop e viewport móvel de 390 px inspecionados visualmente. Console observado sem mensagens visíveis; não é garantia de ausência absoluta de bugs.
+- TypeScript + Vite production build.
+- 11 automated tests: HP, healing, temporary HP, turn/round, ties, active removal, dice, import validation, full catalog, personal stat block preservation, and backup exclusion from build.
+- Real Chrome: imported library, added four heroes and one custom creature, started combat, 15 damage reducing 112 → 97, Poisoned marker, both persisted after reload.
+- Player view: correct public state and turn change synced for Underfoot; notes, AC, and exact HP hidden.
+- Server stopped: service worker reload kept the app and encounter accessible with saved state.
+- Desktop layout and 390 px mobile viewport inspected visually. Console observed with no visible messages; not a guarantee of zero bugs.
 
-### Conferência final de entrega
+### Final delivery check
 
-- Exportação real `roundkeep-backup.json` baixada pelo navegador e validada pelo modelo. O campo `sourceBackup` é idêntico ao backup original; cópia adicional em `private-data/roundkeep-verified-backup.json`.
-- Encontro `Vallaki - demo` salvo, em preparação, com 4 aliados e 1 adversário. Dano e condição introduzidos nos testes foram removidos; os PV foram restaurados.
-- Bootstrap HTTP local comparado ao arquivo original: conteúdo idêntico, `Cache-Control: no-store`. Catálogo servido com 331 registros e ETag.
-- Fontes DM Sans e Manrope incluídas no build e na lista de pré-cache; não há dependência de Google Fonts em tempo de execução.
-- Proteção Web Locks verificada em duas abas reais: a primeira mantém a edição e a segunda informa que a mesa já está aberta, sem sobrescrever dados. A visão dos jogadores continua disponível em paralelo.
+- Real export `roundkeep-backup.json` downloaded by the browser and validated by the model. The `sourceBackup` field is identical to the original backup; additional copy in `private-data/roundkeep-verified-backup.json`.
+- Encounter `Vallaki - demo` saved, in prep, with 4 allies and 1 enemy. Damage and condition from tests were removed; HP restored.
+- Local HTTP bootstrap compared to original file: identical content, `Cache-Control: no-store`. Catalog served with 331 records and ETag.
+- DM Sans and Manrope fonts included in build and precache list; no Google Fonts runtime dependency.
+- Web Locks protection verified in two real tabs: the first keeps editing and the second reports the table is already open, without overwriting data. Player view remains available in parallel.
