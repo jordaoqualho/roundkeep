@@ -9,7 +9,7 @@ RoundKeep is a tactical combat table for D&D 5e that runs locally in the browser
 - **Combat table** with turns, rounds, editable initiative, damage/healing, and conditions
 - **Offline library** with 331 SRD 2024 creatures and 319 spells, ready to browse
 - **Import** from Improved Initiative and RoundKeep backups, with a review step before confirming
-- **Player view** synced locally in the same browser
+- **Player view** via `/p/{id}` on the LAN (Socket.IO); BroadcastChannel fallback in this browser
 - **Offline mode** via service worker after the first load
 - **Portable backups** as JSON to move your campaign to another device
 
@@ -21,7 +21,7 @@ npm run build
 npm start
 ```
 
-Open **http://localhost:5173**. The server listens only on `127.0.0.1`.
+Open **http://localhost:5173**. The table binds to the LAN so phones can open `/p/{id}`. Bootstrap (`/api/bootstrap`) remains loopback-only. This is not a public cloud room.
 
 For development: `npm run dev`. To verify: `npm test` and `npm run build`.
 
@@ -33,7 +33,7 @@ The backup extracted from the original tab lives in `private-data/improved-initi
 
 Later exports from Improved Initiative can be imported through the UI. Import shows a review step before confirmation. The source file is preserved in full and can be downloaded again.
 
-**Data & settings** handles import/export. **Saved encounters** stores combat prep. **Player view** opens a window synced locally in this browser; it does not create a remote room.
+**Data & settings** handles import/export. **Saved encounters** stores combat prep. **Player view** opens `/p/{id}` for devices on this network and still supports same-browser `/?player`.
 
 ## Shortcuts
 

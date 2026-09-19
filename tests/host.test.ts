@@ -26,12 +26,12 @@ test("socket.io paths skip the SPA handler; upgrades use the host allowlist", ()
   assert.equal(isSocketIoPath("/socket.io"), true);
   assert.equal(isSocketIoPath("/api/health"), false);
   let allowed;
-  allowSocketRequest({ headers: { host: "192.168.1.8:5173" } }, (err, ok) => {
+  allowSocketRequest({ headers: { host: "192.168.1.8:5173" } }, (err: Error | null, ok: boolean) => {
     assert.equal(err, null);
     allowed = ok;
   });
   assert.equal(allowed, true);
-  allowSocketRequest({ headers: { host: "8.8.8.8" } }, (err, ok) => {
+  allowSocketRequest({ headers: { host: "8.8.8.8" } }, (err: Error | null, ok: boolean) => {
     assert.equal(err, null);
     allowed = ok;
   });

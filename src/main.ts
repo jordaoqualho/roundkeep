@@ -82,6 +82,7 @@ import {
 import { encounterDifficulty } from "./difficulty";
 import { projectEncounter } from "./projection";
 import { catalogue, get, put, saveState } from "./storage";
+import { io } from "socket.io-client";
 import "./style.css";
 const icons: Record<string, any> = {
   Swords,
@@ -194,8 +195,10 @@ let state: State,
   saveQueue = Promise.resolve(),
   toastTimer: ReturnType<typeof setTimeout>,
   ready = false;
-const playerMode = new URLSearchParams(location.search).has("player");
+const playerRoom = location.pathname.match(/^\/p\/([^/]+)\/?$/)?.[1] || "";
+const playerMode = new URLSearchParams(location.search).has("player") || !!playerRoom;
 const channel = new BroadcastChannel("roundkeep-player");
+let tableSocket: ReturnType<typeof io> | null = null;
 function toast(message: string) {
   const el = document.querySelector("#toast")!;
   el.textContent = message;
@@ -226,6 +229,42 @@ function persist() {
       updateSaveStatus();
     });
   broadcast();
+  if (tableSocket?.connected) {
+    tableSocket.emit("update encounter", state.encounter.id, projectEncounter(state.encounter));
+  }
+}
+function fallbackPlayerUrl(roomId: string) {
+  return `${location.origin}/p/${roomId}`;
+}
+async function playerShareUrls(roomId: string) {
+  try {
+    const response = await fetch(`/api/player-info?room=${encodeURIComponent(roomId)}`);
+    if (!response.ok) throw new Error();
+    const data = await response.json();
+    if (Array.isArray(data.urls) && data.urls.length) return data.urls as string[];
+  } catch {}
+  return [fallbackPlayerUrl(roomId)];
+}
+function playerShareHtml(urls: string[]) {
+  return urls
+    .map(
+      (url) =>
+        `<div class="player-share-row"><code>${esc(url)}</code>${btn("copy-player-url", "Copy", "Copy", "secondary", `data-url="${esc(url)}"`)}</div>`,
+    )
+    .join("");
+}
+async function fillPlayerShare() {
+  const target = modal.querySelector("#player-share-urls");
+  if (!target) return;
+  const urls = await playerShareUrls(state.encounter.id);
+  target.innerHTML = playerShareHtml(urls);
+}
+function showPlayerShare(title: string, intro: string) {
+  openModal(
+    title,
+    `<div class="settings-section"><h3>${icon("Eye")} Player view</h3><p>${intro}</p><div id="player-share-urls" class="player-share-list"></div></div>`,
+  );
+  void fillPlayerShare();
 }
 function updateSaveStatus() {
   const el = document.querySelector("#save-status");
@@ -687,7 +726,12 @@ function settings() {
   const firstSection = modal.querySelector(".settings-section");
   if (firstSection) firstSection.insertAdjacentHTML("beforebegin", appearance);
   else modal.insertAdjacentHTML("beforeend", appearance);
+  const playerShare = `<div class="settings-section"><h3>${icon("Eye")} Player view</h3><p>Share <code>/p/</code> plus the room id on this network. Same-browser <code>?player</code> still works.</p><div id="player-share-urls" class="player-share-list"></div></div>`;
+  const themeSection = modal.querySelector(".theme-section");
+  if (themeSection) themeSection.insertAdjacentHTML("afterend", playerShare);
+  else modal.insertAdjacentHTML("beforeend", playerShare);
   enhanceSelects(modal);
+  void fillPlayerShare();
 }
 function download(data: unknown, name: string) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
@@ -1110,12 +1154,24 @@ async function action(kind: string, el: HTMLElement) {
     case "help":
       openModal(
         "Your table, simplified",
-        `<div class="help-list"><p><kbd>⌘ K</kbd> Search and quick actions</p><p><kbd>N</kbd> Advance turn</p><p><kbd>/</kbd> Search library</p><p><kbd>D</kbd> Open dice roller</p><p><kbd>Ctrl / ⌘ + Z</kbd> Undo a combat action</p><p>Click initiative to edit it. Click HP to apply damage or healing. Player view hides notes, AC, and exact HP.</p><p>The player window syncs in this same browser and device. It is not a remote session link.</p></div>`,
+        `<div class="help-list"><p><kbd>⌘ K</kbd> Search and quick actions</p><p><kbd>N</kbd> Advance turn</p><p><kbd>/</kbd> Search library</p><p><kbd>D</kbd> Open dice roller</p><p><kbd>Ctrl / ⌘ + Z</kbd> Undo a combat action</p><p>Click initiative to edit it. Click HP to apply damage or healing. Player view hides notes, AC, and exact HP.</p><p>The player window syncs in this same browser and device. Share /p/ plus the room id on this network. Same-browser ?player still works.</p></div>`,
       );
       break;
     case "player":
-      window.open("/?player", "roundkeep-player-view");
+      window.open("/p/" + state.encounter.id, "roundkeep-player-view");
+      showPlayerShare(
+        "Player view",
+        "Share <code>/p/</code> plus the room id on this network. Same-browser <code>?player</code> still works.",
+      );
       break;
+    case "copy-player-url": {
+      const url = el.dataset.url || fallbackPlayerUrl(state.encounter.id);
+      void navigator.clipboard.writeText(url).then(
+        () => toast("Copied player view URL."),
+        () => toast("Could not copy. Select the URL instead."),
+      );
+      break;
+    }
     case "log":
       openModal(
         "Encounter history",
@@ -1493,10 +1549,24 @@ command.addEventListener("mousemove", (event) => {
 window.addEventListener("online", () => render());
 window.addEventListener("offline", () => render());
 function renderPlayer(p: any) {
-  app.innerHTML = `<main class="player-screen"><div class="wordmark">ROUND<span class="wordmark-dot">·</span>KEEP<span class="wordmark-sub">Player view</span></div><p class="muted">${p.round ? "Round " + p.round : "Preparation"}</p><h1>${esc(p.name)}</h1><div class="player-list">${p.combatants.map((c: any) => `<article class="player-card ${c.id === p.activeId ? "current" : ""}"><span class="player-initiative">${num(c.initiative)}</span><div><h2>${esc(c.name)}</h2><p>${esc(c.health)}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}</p></div>${c.id === p.activeId ? '<span class="turn-label">Current turn</span>' : ""}</article>`).join("") || "<p>Waiting for combatants…</p>"}</div><p class="muted">Local sync · keep the DM table open in this browser.</p></main>`;
+  app.innerHTML = `<main class="player-screen"><div class="wordmark">ROUND<span class="wordmark-dot">·</span>KEEP<span class="wordmark-sub">Player view</span></div><p class="muted">${p.round ? "Round " + p.round : "Preparation"}</p><h1>${esc(p.name)}</h1><div class="player-list">${p.combatants.map((c: any) => `<article class="player-card ${c.id === p.activeId ? "current" : ""}"><span class="player-initiative">${num(c.initiative)}</span><div><h2>${esc(c.name)}</h2><p>${esc(c.health)}${typeof c.ac === "number" ? " · AC " + c.ac : ""}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}</p></div>${c.id === p.activeId ? '<span class="turn-label">Current turn</span>' : ""}</article>`).join("") || "<p>Waiting for combatants…</p>"}</div><p class="muted">Room ${esc(playerRoom || "local")}</p></main>`;
 }
 async function init() {
   document.documentElement.classList.add("is-loading");
+  if (playerRoom) {
+    app.innerHTML =
+      '<div class="boot">ROUND<span class="wordmark-dot">·</span>KEEP<br><small>Waiting for the DM table…</small></div>';
+    tableSocket = io();
+    tableSocket.emit("join encounter", playerRoom);
+    tableSocket.emit("request encounter", playerRoom);
+    tableSocket.on("encounter updated", (projection) => renderPlayer(projection));
+    tableSocket.on("connect_error", () => {
+      const note = app.querySelector(".boot small");
+      if (note) note.textContent = "Cannot reach the table. Is RoundKeep running on this network?";
+    });
+    document.documentElement.classList.remove("is-loading");
+    return;
+  }
   if (playerMode) {
     app.innerHTML =
       '<div class="boot">ROUND<span class="wordmark-dot">·</span>KEEP<br><small>Waiting for the DM table…</small></div>';
@@ -1504,6 +1574,7 @@ async function init() {
       if (event.data.type === "state") renderPlayer(event.data.data);
     };
     channel.postMessage({ type: "request" });
+    document.documentElement.classList.remove("is-loading");
     return;
   }
   channel.onmessage = (event) => {
@@ -1572,6 +1643,9 @@ async function init() {
   document.documentElement.classList.remove("is-loading");
   render();
   persist();
+  tableSocket = io();
+  tableSocket.emit("join encounter", state.encounter.id);
+  tableSocket.emit("update encounter", state.encounter.id, projectEncounter(state.encounter));
   if (result.some((r) => r.status === "rejected"))
     toast("Part of the catalogue failed to load. Your personal stat blocks remain available.");
   if (import.meta.env.PROD && "serviceWorker" in navigator)

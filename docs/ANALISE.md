@@ -57,13 +57,13 @@ RoundKeep has its own TypeScript frontend, Vite, and Lucide icons. The local Nod
 - History, undo encounter actions, private notes, saved encounters, validated import with review, exportable backup, and original preservation.
 - IndexedDB `roundkeep`, store `data`: `state`, versioned catalog, and `before-import` snapshot. Automatic migration from legacy `patron` databases.
 - Production service worker: shell, local assets, and catalogs. Cache version is derived from the build and catalogs. Private `/api/bootstrap` never enters the service worker cache.
-- Player view via BroadcastChannel in the same browser/device; only public encounter projection is sent.
+- Player view is a LAN Socket.IO room at `/p/{id}` plus same-browser BroadcastChannel (`/?player`); only the public encounter projection is sent.
 
 The UI keeps the library, combat order, and stat block in separate areas. Action names are explicit, focus is visible, native dialogs are used, state contrast is clear, and the layout adapts to mobile.
 
 ## Explicit limits
 
-- No Patreon auth, cloud account sync, or multi-user remote room. Player view is local.
+- No Patreon auth, cloud account sync, or public cloud room. Player view is a LAN Socket.IO room plus same-browser BroadcastChannel. Not a public cloud room. Bootstrap remains loopback-only.
 - Rule content keeps the source language; the interface is in English.
 - Conditions are manual markers; no automatic round expiration or engine applying all condition rules.
 - The offline catalog is a snapshot of the source on the analysis date. It does not automatically download all additional Open5e books.

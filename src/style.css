@@ -2149,6 +2149,24 @@ label.check {
   margin-bottom: 10px;
 }
 
+.player-share-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-share-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-share-row code {
+  flex: 1;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
 .theme-control {
   max-width: 280px;
   gap: 6px;
