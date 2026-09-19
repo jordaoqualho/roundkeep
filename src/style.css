@@ -1,4 +1,12 @@
 @font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
   font-family: "Manrope";
   font-style: normal;
   font-weight: 200 800;
@@ -18,7 +26,7 @@
   --accent: #3ecf8e;
   --accent-strong: #006239;
   --accent-soft: #1f4b37;
-  --accent-text: #fafafa;
+  --accent-text: #121212;
   --ally: #006239;
   --ally-soft: #fafafa;
   --enemy: #4d4d4d;
@@ -36,15 +44,15 @@
   --rail-bg: #121212;
   --rail-fg: #b4b4b4;
   --rail-line: #2e2e2e;
-  --radius: 16px;
-  --radius-sm: 8px;
-  --radius-pill: 9999px;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-md: 6px;
   --rail: 56px;
   --topbar: 48px;
-  --control: 32px;
+  --control: 26px;
   --fs-title: 20px;
   --fs-section: 14px;
-  --fs-body: 13px;
+  --fs-body: 14px;
   --fs-ui: 12px;
   --fs-meta: 11px;
   --fs-data: 15px;
@@ -55,7 +63,7 @@
   --scroll-size: 8px;
   --scroll-thumb: var(--line-strong);
   --scroll-track: transparent;
-  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-synthesis: none;
   color: var(--text);
   background: var(--bg);
@@ -68,12 +76,12 @@
   --surface: #242424;
   --line: #2e2e2e;
   --line-strong: #393939;
-  --muted: #898989;
+  --muted: #a3a3a3;
   --text: #fafafa;
   --accent: #3ecf8e;
   --accent-strong: #00c573;
   --accent-soft: #1f4b37;
-  --accent-text: #fafafa;
+  --accent-text: #121212;
   --ally: #3ecf8e;
   --ally-soft: #121212;
   --enemy: #b4b4b4;
@@ -91,9 +99,9 @@
   --rail-bg: #121212;
   --rail-fg: #b4b4b4;
   --rail-line: #2e2e2e;
-  --radius: 16px;
-  --radius-sm: 8px;
-  --radius-pill: 9999px;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-md: 6px;
 }
 
 * {
@@ -113,6 +121,7 @@ body {
 body {
   font-size: var(--fs-body);
   line-height: var(--lh-body);
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -215,7 +224,7 @@ p {
 h1,
 h2,
 h3 {
-  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font-family: Manrope, Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-weight: 500;
 }
 
@@ -267,12 +276,18 @@ small {
 .secondary,
 .danger,
 .subtle {
+  height: var(--control);
   min-height: var(--control);
-  padding: 8px 16px;
-  border-radius: var(--radius-pill);
-  font-size: 14px;
-  font-weight: 500;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
   border: 1px solid transparent;
+}
+
+.primary svg {
+  color: inherit;
 }
 
 .primary {
@@ -312,7 +327,7 @@ small {
   min-width: var(--control);
   min-height: var(--control);
   color: var(--muted);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
 }
 
 .icon-button:hover:not(:disabled) {
@@ -329,14 +344,19 @@ small {
   width: 22px;
   height: 22px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   color: var(--muted);
 }
 
 kbd {
-  font: 10px/1.3 "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font:
+    500 10px/1.3 Inter,
+    "Helvetica Neue",
+    Helvetica,
+    Arial,
+    sans-serif;
   border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   min-width: 18px;
   display: inline-flex;
   align-items: center;
@@ -393,7 +413,7 @@ kbd {
 .rail-button {
   width: 36px;
   height: 36px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   color: var(--rail-fg);
 }
 
@@ -449,15 +469,22 @@ kbd {
 }
 
 .wordmark {
-  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 500;
-  letter-spacing: -0.007em;
-  font-size: var(--fs-section);
+  letter-spacing: 0.16em;
+  font-size: 13px;
   line-height: 1;
   color: var(--text);
+  text-transform: uppercase;
 }
 
-.wordmark span {
+.wordmark-dot {
+  color: var(--accent);
+  margin: 0 0.04em;
+  font-weight: 400;
+}
+
+.wordmark-sub {
   display: none;
 }
 
@@ -482,11 +509,11 @@ kbd {
   justify-content: flex-start;
   gap: 8px;
   width: min(420px, 46vw);
-  height: 32px;
+  height: var(--control);
   justify-self: center;
   padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--muted);
   font-size: 12px;
@@ -577,7 +604,8 @@ main {
 
 .heading-actions {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
 
 .combat-layout {
@@ -621,10 +649,10 @@ main {
 }
 
 .panel-title .icon-button {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
+  width: var(--control);
+  height: var(--control);
+  min-width: var(--control);
+  min-height: var(--control);
   border: 1px solid var(--line);
   background: var(--surface);
 }
@@ -749,7 +777,7 @@ main {
 .small-glyph.green {
   background: var(--surface);
   border-color: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-strong);
 }
 
 .add-button {
@@ -800,8 +828,8 @@ main {
 }
 
 .round-icon {
-  height: 30px;
-  width: 30px;
+  height: var(--control);
+  width: var(--control);
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
@@ -940,7 +968,7 @@ main {
   line-height: 28px;
   text-align: center;
   color: var(--text);
-  font-family: "Manrope", sans-serif;
+  font-family: inherit;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   appearance: textfield;
@@ -1006,7 +1034,7 @@ main {
 
 .turn-label {
   font-size: var(--fs-meta);
-  color: var(--accent);
+  color: var(--accent-strong);
   letter-spacing: 0;
   font-weight: 500;
 }
@@ -1030,7 +1058,7 @@ main {
 }
 
 .hp-cell strong {
-  font-family: "Manrope", sans-serif;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 500;
 }
@@ -1049,7 +1077,7 @@ main {
 .hp-track {
   height: 3px;
   background: var(--line);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -1057,7 +1085,7 @@ main {
 .hp-track i.ally {
   height: 100%;
   display: block;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   background: var(--ally);
 }
 
@@ -1193,7 +1221,7 @@ main {
   letter-spacing: 0;
   border: 1px solid var(--line);
   padding: 2px 6px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   color: var(--enemy);
   background: var(--enemy-soft);
 }
@@ -1287,7 +1315,7 @@ main {
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   font-size: 11px;
   padding: 3px 6px;
 }
@@ -1491,10 +1519,11 @@ main {
   margin-bottom: 14px;
 }
 
-.empty-combat > div:nth-last-child(2) {
+.empty-combat > .empty-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
+  justify-content: center;
 }
 
 .empty-steps {
@@ -1602,6 +1631,7 @@ dialog::backdrop {
 
 .modal-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
@@ -1790,7 +1820,7 @@ select::-ms-expand {
 
 .select-option {
   width: 100%;
-  min-height: 32px;
+  min-height: var(--control);
   padding: 0 8px;
   justify-content: space-between;
   border-radius: var(--radius-sm);
@@ -1804,7 +1834,7 @@ select::-ms-expand {
 }
 
 .select-option[aria-selected="true"] {
-  color: var(--accent);
+  color: var(--accent-strong);
 }
 
 .command-palette {
@@ -1816,10 +1846,12 @@ select::-ms-expand {
 
 .command-search {
   display: flex;
+  flex-direction: row;
   align-items: center;
   flex-wrap: nowrap;
   gap: 8px;
-  padding: 10px 12px;
+  min-height: var(--control);
+  padding: 0 12px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
 }
@@ -1859,7 +1891,7 @@ select::-ms-expand {
 
 .command-item {
   width: 100%;
-  min-height: 36px;
+  min-height: var(--control);
   padding: 0 8px;
   justify-content: flex-start;
   gap: 8px;
@@ -1931,7 +1963,7 @@ select::-ms-expand {
 .condition-picker button {
   border: 1px solid var(--line);
   padding: 6px 8px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   font-size: 11px;
   color: var(--muted);
 }
@@ -1995,7 +2027,7 @@ select::-ms-expand {
 .dice-result .dice-total {
   grid-column: 2;
   grid-row: 1 / span 2;
-  font-family: "Manrope", sans-serif;
+  font-family: inherit;
   font-size: 28px;
   font-weight: 500;
   line-height: 1;
@@ -2010,7 +2042,7 @@ select::-ms-expand {
 }
 
 .dice-result strong {
-  font-family: "Manrope", sans-serif;
+  font-family: inherit;
   font-size: 28px;
   color: var(--text);
 }
@@ -2069,6 +2101,7 @@ select::-ms-expand {
 
 .settings-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 10px;
 }
@@ -2207,18 +2240,21 @@ select::-ms-expand {
   align-items: center;
   justify-content: center;
   min-height: 100dvh;
-  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: var(--fs-title);
   font-weight: 500;
-  letter-spacing: -0.007em;
+  letter-spacing: 0.16em;
   gap: 10px;
   color: var(--text);
+  text-transform: uppercase;
 }
 
 .boot small {
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
   font-size: 13px;
   color: var(--muted);
   letter-spacing: 0;
+  text-transform: none;
 }
 
 #toast {
@@ -2254,10 +2290,12 @@ select::-ms-expand {
 }
 
 .player-screen > .wordmark {
+  font-size: 16px;
+  letter-spacing: 0.18em;
   margin-bottom: 28px;
 }
 
-.player-screen > .wordmark span {
+.player-screen > .wordmark .wordmark-sub {
   display: block;
   font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
   font-size: var(--fs-meta);
@@ -2265,6 +2303,7 @@ select::-ms-expand {
   font-weight: 500;
   color: var(--muted);
   margin-top: 6px;
+  text-transform: none;
 }
 
 .player-screen h1 {
@@ -2295,7 +2334,7 @@ select::-ms-expand {
 
 .player-initiative {
   font-size: 24px;
-  font-family: "Manrope", sans-serif;
+  font-family: inherit;
   font-weight: 500;
   width: 40px;
 }
@@ -2394,7 +2433,7 @@ button[aria-busy="true"]::after,
   border: 2px solid currentColor;
   border-right-color: transparent;
   border-radius: 50%;
-  color: var(--accent);
+  color: var(--accent-strong);
   content: "";
   animation: rk-spin 0.7s linear infinite;
 }
