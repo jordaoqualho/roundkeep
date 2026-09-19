@@ -1,0 +1,15 @@
+---
+description: RoundKeep visual system. Use when editing UI, CSS, HTML, or visual copy.
+globs: src/style.css,src/main.ts,index.html,public/credits.html
+alwaysApply: false
+---
+
+# RoundKeep visual contract
+
+Authority: `desing.md` tokens. Mode: Operate. Stack: CSS variables in `src/style.css`.
+
+Apply: canvas `#121212`; surfaces `#121212` / `#242424`; edges `#2e2e2e`; text `#fafafa` / `#b4b4b4` / `#898989`; accent `#3ecf8e` once per region; Manrope 400/500; tracking `-0.007em`; radii 9999 / 16 / 8; elevation = 1px border; focus = 1px green, no glow; motion 150–250ms.
+
+Do not: 72px display type, marketing section gaps, logo clouds, second accent, card shadows, gradients, framework migration, Lucide swap, IA / shortcut / copy changes.
+
+Light theme is a snow-canvas translation. Light `--muted` is `#4d4d4d`, not `#898989`.
