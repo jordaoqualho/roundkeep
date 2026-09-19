@@ -3,9 +3,13 @@ import assert from "node:assert/strict";
 import {
   addTag,
   applyHP,
+  concentrationDC,
+  constitutionMod,
   createCombatant,
   emptyEncounter,
   advance,
+  endConcentration,
+  isConcentrating,
   ordered,
   removeCombatant,
   roll,
@@ -228,6 +232,27 @@ test("start-of-turn tags tick when that combatant becomes active; null remaining
   assert.equal(e.activeId, b.id);
   assert.equal(b.tags.map((t) => t.text).join(","), "Hunter's mark");
   assert.equal(b.tags[0].remainingRounds, null);
+});
+
+test("concentration DC uses full damage including temp HP; fail strips concentration tags only", () => {
+  const c = createCombatant({
+    ...stat,
+    Abilities: { ...stat.Abilities, Con: 14 },
+  });
+  addTag(c, { text: "Concentration", concentration: true });
+  addTag(c, { text: "Bless", remainingRounds: 10, concentration: true });
+  addTag(c, { text: "Poisoned" });
+  applyHP(c, 6, "temp");
+  const result = applyHP(c, 14, "damage");
+  assert.equal(result.taken, 14);
+  assert.equal(c.hp, 2);
+  assert.equal(concentrationDC(result.taken), 10);
+  assert.equal(concentrationDC(22), 11);
+  assert.equal(isConcentrating(c), true);
+  endConcentration(c);
+  assert.equal(isConcentrating(c), false);
+  assert.deepEqual(c.conditions, ["Poisoned"]);
+  assert.equal(constitutionMod(c), 2);
 });
 
 test("legacy conditions strings migrate into untimed tags", () => {

@@ -182,21 +182,35 @@ export function applyHP(
   c: Combatant,
   amount: number,
   mode: "damage" | "heal" | "temp",
-) {
+): { taken: number } {
   if (!Number.isFinite(amount) || amount < 0)
     throw new Error("Enter a positive value.");
   amount = Math.floor(amount);
   if (mode === "temp") {
     c.tempHp = Math.max(c.tempHp, amount);
-    return;
+    return { taken: 0 };
   }
   if (mode === "heal") {
     c.hp = clamp(c.hp + amount, 0, c.maxHp);
-    return;
+    return { taken: 0 };
   }
   const absorbed = Math.min(c.tempHp, amount);
   c.tempHp -= absorbed;
   c.hp = Math.max(0, c.hp - (amount - absorbed));
+  return { taken: amount };
+}
+export function concentrationDC(damage: number) {
+  return Math.max(10, Math.floor(damage / 2));
+}
+export function isConcentrating(c: Combatant) {
+  return c.tags.some((t) => t.concentration);
+}
+export function endConcentration(c: Combatant) {
+  c.tags = c.tags.filter((t) => !t.concentration);
+  syncConditions(c);
+}
+export function constitutionMod(c: Combatant) {
+  return Math.floor((num(c.stat.Abilities?.Con, 10) - 10) / 2);
 }
 export function ordered(e: Encounter) {
   return [...e.combatants].sort(
