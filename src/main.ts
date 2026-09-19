@@ -54,7 +54,10 @@ import {
   roll,
   type Spell,
   type StatBlock,
+  restoreTable,
+  snapshotTable,
   type State,
+  type TableSnapshot,
   validateState,
 } from "./model";
 import { catalogue, get, put, saveState } from "./storage";
@@ -159,7 +162,7 @@ let state: State,
   query = "",
   source = "all",
   view = "combat",
-  history: Encounter[] = [],
+  history: TableSnapshot[] = [],
   preview: StatBlock | Spell | null = null,
   editingStat: StatBlock | undefined,
   saveError = false,
@@ -225,7 +228,7 @@ function updateSaveStatus() {
       (saveError ? "Save failed" : pendingSaves ? "Saving…" : "Saved in this browser");
 }
 function change(fn: () => void, message?: string) {
-  history.push(structuredClone(state.encounter));
+  history.push(snapshotTable({ encounter: state.encounter, characters: state.characters }));
   if (history.length > 60) history.shift();
   fn();
   if (message) {
@@ -733,7 +736,7 @@ async function action(kind: string, el: HTMLElement) {
     case "undo": {
       const previous = history.pop();
       if (previous) {
-        state.encounter = previous;
+        restoreTable(state, previous);
         persist();
         render();
         toast("Last action undone.");
@@ -1318,6 +1321,8 @@ async function init() {
       library: [],
       spells: [],
       saved: [],
+      characters: [],
+      party: { size: 4, level: 3 },
       updatedAt: new Date().toISOString(),
     };
     try {
@@ -1331,6 +1336,7 @@ async function init() {
         state.saved = imported.saved;
         if (Object.keys(raw).length) state.sourceBackup = raw;
         if (imported.encounter) state.encounter = imported.encounter;
+        state.characters = imported.characters || [];
         state.encounter.name = "New encounter";
       }
     } catch {}

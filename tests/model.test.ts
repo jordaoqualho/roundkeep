@@ -18,9 +18,11 @@ import {
   reindexSort,
   quickAddCombatant,
   removeCombatant,
+  restoreTable,
   rollCombatantInitiative,
   roll,
   importOriginal,
+  snapshotTable,
   syncPersistentHp,
   upsertHeroFromStat,
   validateState,
@@ -218,6 +220,8 @@ test("backup validation rejects invalid HP, duplicate ids and invalid active tur
     library: [],
     spells: [],
     saved: [],
+    characters: [],
+    party: { size: 4, level: 3 },
     updatedAt: "",
   };
   s.encounter.combatants = [createCombatant(stat)];
@@ -350,6 +354,38 @@ test("quick add builds a nameless mook; clean strips dead enemies and restores a
   assert.equal(pc.tempHp, 0);
   assert.equal(characters[0].currentHp, pc.maxHp);
   assert.equal(e.round, 2);
+});
+
+test("party budget defaults and rejects out of range; snapshot restores hero HP", () => {
+  const s = {
+    version: 1 as const,
+    encounter: emptyEncounter(),
+    library: [],
+    spells: [],
+    saved: [],
+    characters: [],
+    updatedAt: "",
+  } as unknown as State;
+  const v = validateState(s);
+  assert.equal(v.party.size, 4);
+  assert.equal(v.party.level, 3);
+  v.party.size = 99;
+  assert.throws(() => validateState(v));
+  const characters: PersistentCharacter[] = [];
+  const hero = upsertHeroFromStat(
+    characters,
+    { ...stat, Name: "Hero", Player: "player" },
+    10,
+  );
+  const e = emptyEncounter();
+  const c = addHeroToEncounter(e, hero);
+  const table = { encounter: e, characters };
+  const snap = snapshotTable(table);
+  applyHP(c, 9, "damage");
+  syncPersistentHp(characters, c);
+  restoreTable(table, snap);
+  assert.equal(table.encounter.combatants[0].hp, 10);
+  assert.equal(table.characters[0].currentHp, 10);
 });
 
 test("legacy conditions strings migrate into untimed tags", () => {

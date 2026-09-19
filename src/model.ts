@@ -217,6 +217,23 @@ export function addHeroToEncounter(
   e.combatants.push(c);
   return c;
 }
+export type TableSnapshot = {
+  encounter: Encounter;
+  characters: PersistentCharacter[];
+};
+export function snapshotTable(table: {
+  encounter: Encounter;
+  characters: PersistentCharacter[];
+}): TableSnapshot {
+  return structuredClone(table);
+}
+export function restoreTable(
+  table: { encounter: Encounter; characters: PersistentCharacter[] },
+  snap: TableSnapshot,
+) {
+  table.encounter = structuredClone(snap.encounter);
+  table.characters = structuredClone(snap.characters);
+}
 export function syncPersistentHp(
   characters: PersistentCharacter[],
   c: Combatant,
@@ -607,6 +624,16 @@ export function validateState(input: unknown): State {
     throw new Error("Invalid RoundKeep backup.");
   s.characters ||= [];
   s.party ||= { size: 4, level: 3 };
+  const { size, level } = s.party;
+  if (
+    !Number.isInteger(size) ||
+    size < 1 ||
+    size > 12 ||
+    !Number.isInteger(level) ||
+    level < 1 ||
+    level > 20
+  )
+    throw new Error("Invalid party budget.");
   const validEncounter = (e: Encounter) => {
     if (
       !e ||
