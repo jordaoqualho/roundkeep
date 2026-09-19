@@ -120,7 +120,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 1px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -261,9 +261,9 @@ small {
 .danger,
 .subtle {
   min-height: var(--control);
-  padding: 0 11px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 14px;
   font-weight: 500;
   border: 1px solid transparent;
 }
@@ -271,37 +271,31 @@ small {
 .primary {
   background: var(--accent);
   color: var(--accent-text);
+  border-color: var(--accent);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--accent-strong);
+  background: var(--accent);
+  border-color: var(--accent-soft);
   color: var(--accent-text);
 }
 
-:root[data-theme="dark"] .primary:hover:not(:disabled) {
-  background: #4ade80;
-}
-
-.secondary {
-  background: var(--surface);
-  border-color: var(--line);
+.secondary,
+.subtle {
+  background: transparent;
+  border-color: var(--line-strong);
   color: var(--text);
 }
 
-.secondary:hover:not(:disabled) {
-  background: var(--panel);
-  border-color: var(--line-strong);
+.secondary:hover:not(:disabled),
+.subtle:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border-color: var(--input-border-hover);
 }
 
 .danger {
-  background: var(--enemy-soft);
-  border-color: color-mix(in srgb, var(--enemy) 35%, var(--line));
-  color: var(--enemy);
-}
-
-.subtle {
-  background: var(--panel);
-  border-color: var(--line);
+  background: transparent;
+  border-color: var(--line-strong);
   color: var(--text);
 }
 
@@ -311,7 +305,7 @@ small {
   min-width: var(--control);
   min-height: var(--control);
   color: var(--muted);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
 }
 
 .icon-button:hover:not(:disabled) {
@@ -328,16 +322,14 @@ small {
   width: 22px;
   height: 22px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-pill);
   color: var(--muted);
 }
 
 kbd {
-  font:
-    10px "Manrope",
-    ui-sans-serif, system-ui, sans-serif;
+  font: 10px/1.3 "Manrope", ui-sans-serif, system-ui, sans-serif;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-pill);
   min-width: 18px;
   display: inline-flex;
   align-items: center;
@@ -373,8 +365,8 @@ kbd {
 }
 
 .brand-mark:hover {
-  transform: scale(1.08);
-  filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.45));
+  transform: none;
+  filter: none;
 }
 
 .brand-mark svg {
@@ -416,14 +408,14 @@ kbd {
 .profile {
   width: 26px;
   height: 26px;
-  background: #1a1a1a;
-  border: 1px solid #3d3d3d;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
   border-radius: 50%;
   font-size: 10px;
   font-weight: 500;
   display: grid;
   place-items: center;
-  color: #ffffff;
+  color: var(--text);
 }
 
 .workspace {
@@ -667,8 +659,8 @@ main {
 }
 
 .searchbox:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: none;
+  border-color: var(--input-focus);
 }
 
 .library-search .select {
@@ -1572,10 +1564,10 @@ main {
 dialog {
   width: min(520px, calc(100vw - 28px));
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--text);
-  box-shadow: var(--shadow);
+  box-shadow: none;
   padding: 18px;
   max-height: 85vh;
   scrollbar-width: thin;
@@ -1683,7 +1675,7 @@ input:focus,
 textarea:focus,
 select:focus {
   border-color: var(--input-focus);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--input-focus) 16%, transparent);
+  box-shadow: none;
   outline: 0;
 }
 
@@ -1700,7 +1692,7 @@ textarea[aria-invalid="true"],
 select[aria-invalid="true"],
 .input-error {
   border-color: var(--red);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 14%, transparent);
+  box-shadow: none;
 }
 
 textarea {
@@ -1763,7 +1755,7 @@ select::-ms-expand {
 
 .select-trigger[aria-expanded="true"] {
   border-color: var(--input-focus);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--input-focus) 16%, transparent);
+  box-shadow: none;
 }
 
 .select-trigger span {
@@ -1786,7 +1778,7 @@ select::-ms-expand {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
-  box-shadow: var(--shadow);
+  box-shadow: none;
 }
 
 .select-option {
@@ -2233,7 +2225,7 @@ select::-ms-expand {
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   padding: 10px 14px;
-  box-shadow: var(--shadow);
+  box-shadow: none;
   font-size: var(--fs-ui);
   transition:
     opacity 0.18s ease,

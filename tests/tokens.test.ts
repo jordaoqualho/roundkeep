@@ -61,6 +61,12 @@ test("UI type is Manrope only and never heavier than 500", () => {
   assert.equal(/font-weight:\s*(?:[6-9]\d{2}|[1-9]\d{3})/.test(css), false);
 });
 
+test("overlays do not use drop shadows or glow rings", () => {
+  assert.equal(css.includes("box-shadow: var(--shadow)"), false);
+  assert.equal(css.includes("0 0 0 3px"), false);
+  assert.equal(css.includes("drop-shadow("), false);
+});
+
 test("light theme is a snow-canvas translation with Graphite muted", () => {
   assert.equal(light.bg, "#fafafa");
   assert.equal(light.panel, "#fafafa");
