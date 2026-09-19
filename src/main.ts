@@ -914,6 +914,7 @@ async function action(kind: string, el: HTMLElement) {
           const copy = structuredClone(c);
           copy.id = id();
           copy.name += " (2)";
+          copy.persistentId = null;
           e.combatants.push(copy);
           selected = copy.id;
         }, `${c.name} duplicated.`);
