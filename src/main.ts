@@ -137,7 +137,7 @@ function applyTheme() {
   const dark = themePreference === "dark" || (themePreference === "system" && themeMedia.matches);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   document.documentElement.style.colorScheme = dark ? "dark" : "light";
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#000000" : "#f5f5f5");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#121212" : "#fafafa");
 }
 function setThemePreference(value: ThemePreference) {
   themePreference = value;

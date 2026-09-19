@@ -61,6 +61,15 @@ test("UI type is Manrope only and never heavier than 500", () => {
   assert.equal(/font-weight:\s*(?:[6-9]\d{2}|[1-9]\d{3})/.test(css), false);
 });
 
+test("browser chrome uses the contract canvases", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+  assert.match(html, /theme-color" content="#121212"/);
+  assert.match(main, /dark \? "#121212" : "#fafafa"/);
+  assert.equal(main.includes("#000000"), false);
+  assert.equal(main.includes("#f5f5f5"), false);
+});
+
 test("overlays do not use drop shadows or glow rings", () => {
   assert.equal(css.includes("box-shadow: var(--shadow)"), false);
   assert.equal(css.includes("0 0 0 3px"), false);
