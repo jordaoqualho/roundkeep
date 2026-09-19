@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  addTag,
   applyHP,
   createCombatant,
   emptyEncounter,
@@ -11,6 +12,7 @@ import {
   importOriginal,
   validateState,
   type State,
+  type Tag,
 } from "../src/model.ts";
 const stat = {
   Id: "goblin",
@@ -160,4 +162,90 @@ test("backup validation rejects invalid HP, duplicate ids and invalid active tur
   invalid.encounter.activeId = null;
   invalid.encounter.combatants.push(invalid.encounter.combatants[0]);
   assert.throws(() => validateState(invalid));
+});
+
+function bless(c: { id: string }, rounds = 1): Tag {
+  return {
+    id: "tag-bless",
+    text: "Bless",
+    remainingRounds: rounds,
+    timing: "end",
+    untilCombatantId: c.id,
+    hidden: false,
+    concentration: false,
+  };
+}
+
+test("timed tags expire at end of the anchored combatant's turn; backward does not restore them", () => {
+  const e = emptyEncounter();
+  const a = createCombatant(stat);
+  const b = createCombatant(stat);
+  a.initiative = 20;
+  b.initiative = 10;
+  a.tags = [bless(a, 1)];
+  e.combatants = [a, b];
+  advance(e);
+  assert.equal(e.activeId, a.id);
+  assert.equal(a.tags[0].remainingRounds, 1);
+  advance(e);
+  assert.equal(e.activeId, b.id);
+  assert.equal(a.tags.length, 0);
+  assert.deepEqual(a.conditions, []);
+  advance(e, -1);
+  assert.equal(e.activeId, a.id);
+  assert.equal(a.tags.length, 0);
+});
+
+test("start-of-turn tags tick when that combatant becomes active; null remaining never expires", () => {
+  const e = emptyEncounter();
+  const a = createCombatant(stat);
+  const b = createCombatant(stat);
+  a.initiative = 20;
+  b.initiative = 10;
+  b.tags = [
+    {
+      id: "stun",
+      text: "Stunned",
+      remainingRounds: 1,
+      timing: "start",
+      untilCombatantId: b.id,
+      hidden: false,
+      concentration: false,
+    },
+    {
+      id: "mark",
+      text: "Hunter's mark",
+      remainingRounds: null,
+      timing: "end",
+      untilCombatantId: b.id,
+      hidden: false,
+      concentration: false,
+    },
+  ];
+  e.combatants = [a, b];
+  advance(e);
+  advance(e);
+  assert.equal(e.activeId, b.id);
+  assert.equal(b.tags.map((t) => t.text).join(","), "Hunter's mark");
+  assert.equal(b.tags[0].remainingRounds, null);
+});
+
+test("legacy conditions strings migrate into untimed tags", () => {
+  const c = createCombatant(stat);
+  (c as { tags?: Tag[] }).tags = undefined;
+  c.conditions = ["Poisoned"];
+  const s = {
+    version: 1 as const,
+    encounter: { ...emptyEncounter(), combatants: [c] },
+    library: [],
+    spells: [],
+    saved: [],
+    characters: [],
+    party: { size: 4, level: 3 },
+    updatedAt: "",
+  };
+  const v = validateState(s);
+  assert.equal(v.encounter.combatants[0].tags[0].text, "Poisoned");
+  assert.equal(v.encounter.combatants[0].tags[0].remainingRounds, null);
+  assert.deepEqual(v.encounter.combatants[0].conditions, ["Poisoned"]);
 });

@@ -36,6 +36,26 @@ export interface Spell {
   Source?: string;
   [key: string]: unknown;
 }
+export interface Tag {
+  id: string;
+  text: string;
+  remainingRounds: number | null;
+  timing: "start" | "end";
+  untilCombatantId: string;
+  hidden: boolean;
+  concentration: boolean;
+}
+export interface PersistentCharacter {
+  id: string;
+  stat: StatBlock;
+  currentHp: number;
+  maxHp: number;
+  notes: string;
+}
+export interface PartyBudget {
+  size: number;
+  level: number;
+}
 export interface Combatant {
   id: string;
   stat: StatBlock;
@@ -47,6 +67,11 @@ export interface Combatant {
   initiative: number;
   side: "ally" | "enemy";
   conditions: string[];
+  tags: Tag[];
+  sortIndex: number;
+  initiativeGroup: string | null;
+  persistentId: string | null;
+  revealedAC: boolean;
   notes: string;
   hidden: boolean;
   reaction: boolean;
@@ -67,6 +92,8 @@ export interface State {
   library: StatBlock[];
   spells: Spell[];
   saved: Encounter[];
+  characters: PersistentCharacter[];
+  party: PartyBudget;
   sourceBackup?: unknown;
   importRevision?: number;
   updatedAt: string;
@@ -104,10 +131,52 @@ export function createCombatant(
     initiative: num(stat.InitiativeModifier),
     side,
     conditions: [],
+    tags: [],
+    sortIndex: 0,
+    initiativeGroup: null,
+    persistentId: null,
+    revealedAC: false,
     notes: "",
     hidden: false,
     reaction: false,
   };
+}
+export function syncConditions(c: Combatant) {
+  c.conditions = c.tags.map((t) => t.text);
+}
+export function addTag(
+  c: Combatant,
+  input: Partial<Tag> & { text: string },
+): Tag {
+  const tag: Tag = {
+    id: input.id || id(),
+    text: input.text,
+    remainingRounds:
+      input.remainingRounds === undefined ? null : input.remainingRounds,
+    timing: input.timing || "end",
+    untilCombatantId: input.untilCombatantId || c.id,
+    hidden: !!input.hidden,
+    concentration: !!input.concentration,
+  };
+  c.tags.push(tag);
+  syncConditions(c);
+  return tag;
+}
+export function tickTags(
+  e: Encounter,
+  phase: "start" | "end",
+  combatantId: string,
+) {
+  for (const c of e.combatants) {
+    c.tags = c.tags.filter((t) => {
+      if (t.untilCombatantId !== combatantId || t.timing !== phase)
+        return true;
+      if (t.remainingRounds === null) return true;
+      t.remainingRounds -= 1;
+      return t.remainingRounds > 0;
+    });
+    syncConditions(c);
+  }
 }
 export function applyHP(
   c: Combatant,
@@ -145,6 +214,9 @@ export function advance(e: Encounter, direction = 1) {
     e.activeId = list[0].id;
     return;
   }
+  if (direction > 0 && e.activeId) {
+    tickTags(e, "end", e.activeId);
+  }
   const pos = list.findIndex((c) => c.id === e.activeId);
   let next = pos + direction;
   if (next >= list.length) {
@@ -160,7 +232,10 @@ export function advance(e: Encounter, direction = 1) {
     }
   }
   e.activeId = list[next].id;
-  if (direction > 0) list[next].reaction = false;
+  if (direction > 0) {
+    list[next].reaction = false;
+    tickTags(e, "start", e.activeId);
+  }
 }
 export function removeCombatant(e: Encounter, combatantId: string) {
   const list = ordered(e),
@@ -329,6 +404,8 @@ export function validateState(input: unknown): State {
     !Array.isArray(s.saved)
   )
     throw new Error("Invalid RoundKeep backup.");
+  s.characters ||= [];
+  s.party ||= { size: 4, level: 3 };
   const validEncounter = (e: Encounter) => {
     if (
       !e ||
@@ -340,7 +417,7 @@ export function validateState(input: unknown): State {
       e.round < 0
     )
       throw new Error("Invalid encounter.");
-    const ids = new Set();
+    const ids = new Set<string>();
     for (const c of e.combatants) {
       if (
         !c.stat ||
@@ -363,6 +440,42 @@ export function validateState(input: unknown): State {
         !["ally", "enemy"].includes(c.side)
       )
         throw new Error("Invalid condition or side.");
+      if (!Array.isArray(c.tags)) {
+        c.tags = (c.conditions || [])
+          .filter((x) => typeof x === "string")
+          .map((text) => ({
+            id: id(),
+            text,
+            remainingRounds: null,
+            timing: "end" as const,
+            untilCombatantId: c.id,
+            hidden: false,
+            concentration: /^concentration$/i.test(text),
+          }));
+      }
+      if (typeof c.sortIndex !== "number") c.sortIndex = 0;
+      if (c.initiativeGroup !== null && typeof c.initiativeGroup !== "string")
+        c.initiativeGroup = null;
+      if (c.initiativeGroup === undefined) c.initiativeGroup = null;
+      if (c.persistentId !== null && typeof c.persistentId !== "string")
+        c.persistentId = null;
+      if (c.persistentId === undefined) c.persistentId = null;
+      if (typeof c.revealedAC !== "boolean") c.revealedAC = false;
+      for (const t of c.tags) {
+        if (
+          !t ||
+          typeof t.id !== "string" ||
+          typeof t.text !== "string" ||
+          typeof t.untilCombatantId !== "string" ||
+          typeof t.hidden !== "boolean" ||
+          typeof t.concentration !== "boolean" ||
+          (t.remainingRounds !== null &&
+            (!Number.isInteger(t.remainingRounds) || t.remainingRounds < 0)) ||
+          (t.timing !== "start" && t.timing !== "end")
+        )
+          throw new Error("Invalid tag.");
+      }
+      syncConditions(c);
       ids.add(c.id);
     }
     if (e.activeId && !ids.has(e.activeId)) throw new Error("Invalid turn.");
