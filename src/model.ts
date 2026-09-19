@@ -264,9 +264,101 @@ export function constitutionMod(c: Combatant) {
 export function ordered(e: Encounter) {
   return [...e.combatants].sort(
     (a, b) =>
+      a.sortIndex - b.sortIndex ||
       b.initiative - a.initiative ||
-      num(b.stat.InitiativeModifier) - num(a.stat.InitiativeModifier),
+      num(b.stat.InitiativeModifier) - num(a.stat.InitiativeModifier) ||
+      a.id.localeCompare(b.id),
   );
+}
+export function reindexSort(e: Encounter) {
+  ordered(e).forEach((c, i) => (c.sortIndex = i));
+}
+export function linkInitiative(e: Encounter, ids: string[]) {
+  const members = e.combatants.filter((c) => ids.includes(c.id));
+  if (members.length < 2) return;
+  const group =
+    members.find((c) => c.initiativeGroup)?.initiativeGroup || id();
+  const initiative = members[0].initiative;
+  for (const c of members) {
+    c.initiativeGroup = group;
+    c.initiative = initiative;
+  }
+}
+export function unlinkInitiative(c: Combatant) {
+  c.initiativeGroup = null;
+}
+export function rollCombatantInitiative(
+  e: Encounter,
+  c: Combatant,
+  random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32,
+) {
+  const total = roll("1d20", random).total + num(c.stat.InitiativeModifier);
+  const group = c.initiativeGroup;
+  for (const other of e.combatants) {
+    if (other.id === c.id || (group && other.initiativeGroup === group))
+      other.initiative = total;
+  }
+  return total;
+}
+export function rollEncounterInitiative(
+  e: Encounter,
+  random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32,
+) {
+  const seen = new Set<string>();
+  for (const c of e.combatants) {
+    const key = c.initiativeGroup || c.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rollCombatantInitiative(e, c, random);
+  }
+  const ranked = [...e.combatants].sort(
+    (a, b) =>
+      b.initiative - a.initiative ||
+      num(b.stat.InitiativeModifier) - num(a.stat.InitiativeModifier) ||
+      a.id.localeCompare(b.id),
+  );
+  ranked.forEach((c, i) => (c.sortIndex = i));
+}
+function groupBlock(list: Combatant[], index: number) {
+  const group = list[index].initiativeGroup;
+  if (!group) return { start: index, end: index };
+  let start = index;
+  let end = index;
+  while (start > 0 && list[start - 1].initiativeGroup === group) start--;
+  while (end < list.length - 1 && list[end + 1].initiativeGroup === group)
+    end++;
+  return { start, end };
+}
+export function moveCombatant(
+  e: Encounter,
+  combatantId: string,
+  direction: -1 | 1,
+) {
+  if (e.combatants.every((c) => c.sortIndex === 0)) reindexSort(e);
+  const list = ordered(e);
+  const index = list.findIndex((c) => c.id === combatantId);
+  if (index < 0) return;
+  const block = groupBlock(list, index);
+  const swapWith = direction < 0 ? block.start - 1 : block.end + 1;
+  if (swapWith < 0 || swapWith >= list.length) return;
+  const other = groupBlock(list, swapWith);
+  const moving = list.slice(block.start, block.end + 1);
+  const neighbor = list.slice(other.start, other.end + 1);
+  const next =
+    direction < 0
+      ? [
+          ...list.slice(0, other.start),
+          ...moving,
+          ...neighbor,
+          ...list.slice(block.end + 1),
+        ]
+      : [
+          ...list.slice(0, block.start),
+          ...neighbor,
+          ...moving,
+          ...list.slice(other.end + 1),
+        ];
+  next.forEach((c, i) => (c.sortIndex = i));
 }
 export function advance(e: Encounter, direction = 1) {
   const list = ordered(e);

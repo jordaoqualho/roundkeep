@@ -11,8 +11,12 @@ import {
   advance,
   endConcentration,
   isConcentrating,
+  linkInitiative,
+  moveCombatant,
   ordered,
+  reindexSort,
   removeCombatant,
+  rollCombatantInitiative,
   roll,
   importOriginal,
   syncPersistentHp,
@@ -68,6 +72,26 @@ test("turns sort descending and round trips across round boundaries", () => {
   assert.equal(e.round, 1);
   assert.equal(e.activeId, b.id);
 });
+test("linked combatants share one roll and move as a block", () => {
+  const e = emptyEncounter();
+  const leader = createCombatant({ ...stat, Name: "Pack" });
+  const mate = createCombatant({ ...stat, Name: "Pack" });
+  const hero = createCombatant({ ...stat, Name: "Hero", Player: "player" });
+  leader.initiative = 5;
+  mate.initiative = 5;
+  hero.initiative = 10;
+  e.combatants = [leader, mate, hero];
+  linkInitiative(e, [leader.id, mate.id]);
+  rollCombatantInitiative(e, leader, () => 0);
+  assert.equal(leader.initiative, mate.initiative);
+  assert.equal(leader.initiative, 3);
+  reindexSort(e);
+  assert.equal(ordered(e)[0].id, hero.id);
+  moveCombatant(e, leader.id, -1);
+  assert.equal(ordered(e)[0].initiativeGroup, leader.initiativeGroup);
+  assert.equal(ordered(e)[2].id, hero.id);
+});
+
 test("initiative edits keep current combatant; ties use modifier", () => {
   const e = emptyEncounter(),
     a = createCombatant(stat),
