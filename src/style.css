@@ -35,6 +35,7 @@
   --input-disabled-text: #898989;
   --rail-bg: #121212;
   --rail-fg: #b4b4b4;
+  --rail-line: #2e2e2e;
   --radius: 16px;
   --radius-sm: 8px;
   --radius-pill: 9999px;
@@ -89,6 +90,7 @@
   --input-disabled-text: #898989;
   --rail-bg: #121212;
   --rail-fg: #b4b4b4;
+  --rail-line: #2e2e2e;
   --radius: 16px;
   --radius-sm: 8px;
   --radius-pill: 9999px;
@@ -214,6 +216,11 @@ h1,
 h2,
 h3 {
   font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+}
+
+strong,
+b {
   font-weight: 500;
 }
 
@@ -344,7 +351,7 @@ kbd {
   inset: 0 auto 0 0;
   width: var(--rail);
   background: var(--rail-bg);
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--rail-line);
   display: flex;
   align-items: center;
   flex-direction: column;
@@ -397,7 +404,7 @@ kbd {
 
 .rail-button.active {
   background: var(--surface);
-  color: var(--accent);
+  color: var(--text);
 }
 
 .rail-bottom {
@@ -638,7 +645,7 @@ main {
 }
 
 .library-tabs button.selected {
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--text);
   color: var(--text);
 }
 
@@ -734,15 +741,15 @@ main {
   height: 24px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
   flex-shrink: 0;
 }
 
 .small-glyph.green {
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
-  color: var(--accent-strong);
+  background: var(--surface);
+  border-color: var(--accent-soft);
+  color: var(--accent);
 }
 
 .add-button {
@@ -750,13 +757,13 @@ main {
   height: 24px;
   color: var(--muted);
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
 }
 
 .add-button:hover:not(:disabled) {
-  color: var(--accent-strong);
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: var(--surface);
 }
 
 .add-button svg {
@@ -798,9 +805,9 @@ main {
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
 }
 
 .battle-toolbar .eyebrow {
@@ -978,7 +985,7 @@ main {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--enemy-soft);
   color: var(--enemy);
@@ -993,7 +1000,7 @@ main {
 .avatar.large {
   height: 40px;
   width: 40px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   box-shadow: none;
 }
 
@@ -1277,9 +1284,9 @@ main {
 }
 
 .condition-chip {
-  color: var(--accent);
+  color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--line);
   border-radius: var(--radius-pill);
   font-size: 11px;
   padding: 3px 6px;
@@ -1314,12 +1321,12 @@ main {
 }
 
 .toggle.on {
-  background: var(--accent);
+  background: var(--text);
   justify-content: flex-end;
 }
 
 .toggle.on i {
-  background: var(--accent-text);
+  background: var(--bg);
 }
 
 .speed,
@@ -1348,7 +1355,7 @@ main {
   gap: 3px;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   padding: 6px 0;
 }
 
@@ -1930,9 +1937,9 @@ select::-ms-expand {
 }
 
 .condition-picker button.selected {
-  color: var(--accent);
+  color: var(--text);
   background: var(--surface);
-  border-color: var(--accent);
+  border-color: var(--line-strong);
 }
 
 #condition-form {
@@ -1972,11 +1979,6 @@ select::-ms-expand {
   padding: 0 6px;
   font-size: var(--fs-ui);
   font-variant-numeric: tabular-nums;
-}
-
-.dice-presets [data-die="20"] {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  color: var(--accent-strong);
 }
 
 .dice-result {
@@ -2543,7 +2545,7 @@ button[aria-busy="true"]::after,
     height: 52px;
     flex-direction: row;
     justify-content: space-around;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--rail-line);
     background: var(--rail-bg);
   }
 

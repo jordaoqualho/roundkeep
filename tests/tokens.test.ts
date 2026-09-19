@@ -59,6 +59,20 @@ test("dark theme maps the desing.md canvas and phosphor accent", () => {
 test("UI type is Manrope only and never heavier than 500", () => {
   assert.equal(css.includes("DM Sans"), false);
   assert.equal(/font-weight:\s*(?:[6-9]\d{2}|[1-9]\d{3})/.test(css), false);
+  assert.match(css, /strong,\s*b\s*\{[\s\S]*?font-weight:\s*500/);
+});
+
+test("interactive chrome uses the 8/16/9999 radius vocabulary", () => {
+  assert.equal(/border-radius:\s*(?:4|5|6|12)px/.test(css), false);
+  assert.equal(/background:\s*var\(--accent-soft\)/.test(css), false);
+  assert.equal(/\.rail-button\.active \{[^}]*--accent/.test(css), false);
+});
+
+test("rail hairline stays charcoal in both themes", () => {
+  assert.equal(light["rail-line"], "#2e2e2e");
+  assert.equal(dark["rail-line"], "#2e2e2e");
+  assert.match(css, /border-right:\s*1px solid var\(--rail-line\)/);
+  assert.match(css, /border-top:\s*1px solid var\(--rail-line\)/);
 });
 
 test("browser chrome uses the contract canvases", () => {
@@ -88,6 +102,8 @@ test("satellite surfaces share the contract", () => {
   assert.equal(credits.includes("#e2e8f0"), false);
   assert.match(credits, /background:\s*#121212/);
   assert.match(credits, /color:\s*#fafafa/);
+  assert.match(credits, /@font-face/);
+  assert.match(credits, /manrope-latin-wght-normal\.woff2/);
   assert.match(
     css,
     /\.player-card\.current \{[\s\S]*?background: var\(--surface\);[\s\S]*?border-color: var\(--accent\);/,
@@ -116,6 +132,8 @@ test("light theme is a snow-canvas translation with Graphite muted", () => {
   assert.equal(light["accent-strong"], "#006239");
   assert.equal(light["accent-text"], "#fafafa");
   assert.equal(light.ally, "#006239");
+  assert.equal(light["ally-soft"], "#fafafa");
+  assert.equal(light.line, "#e5e5e5");
   assert.equal(light.shadow, "none");
   assert.equal(light["input-focus"], "#3ecf8e");
   assert.equal(light.radius, "16px");

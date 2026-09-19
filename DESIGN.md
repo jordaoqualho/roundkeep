@@ -54,7 +54,7 @@ RoundKeep is a local D&D 5e combat table. The shipped visual world is a midnight
 
 ## Colors
 
-Dark canvas `#121212`, surfaces `#121212` / `#242424`, borders `#2e2e2e` / `#393939`, text `#fafafa` / `#b4b4b4` / `#898989`, accent `#3ecf8e`. Light muted is Graphite `#4d4d4d` so helper text stays readable on snow. No second hue. Ally marks reuse phosphor; enemy marks stay silver/graphite.
+Dark canvas `#121212`, surfaces `#121212` / `#242424`, borders `#2e2e2e` / `#393939`, text `#fafafa` / `#b4b4b4` / `#898989`, accent `#3ecf8e`. Light is snow `#fafafa` with Graphite muted `#4d4d4d`, line `#e5e5e5`, and ally-soft `#fafafa`. The rail stays Obsidian in both themes with a charcoal `--rail-line` `#2e2e2e`. No second hue. Ally marks reuse phosphor; enemy marks stay silver/graphite. Forest Depth is a border only.
 
 ## Typography
 
