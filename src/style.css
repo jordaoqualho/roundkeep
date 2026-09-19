@@ -812,6 +812,32 @@ main {
   margin-left: auto;
 }
 
+.library-footer:has(.quick-add) {
+  padding: 8px;
+  color: var(--text);
+  font-size: inherit;
+}
+
+.quick-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.25rem auto;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+}
+
+.quick-add input {
+  min-height: var(--control);
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.quick-add .primary {
+  min-height: var(--control);
+  padding: 0 10px;
+  font-size: 12px;
+}
+
 .battle {
   min-width: 0;
   padding: 12px 14px 8px;
@@ -2695,6 +2721,10 @@ button[aria-busy="true"]::after,
 
   .library-footer {
     display: none;
+  }
+
+  .library-footer:has(.quick-add) {
+    display: flex;
   }
 
   .battle-buttons > [data-action="roll-initiative"] {
