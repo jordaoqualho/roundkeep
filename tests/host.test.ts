@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isAllowedHost, isLoopbackHost } from "../src/host.mjs";
+import {
+  allowSocketRequest,
+  isAllowedHost,
+  isLoopbackHost,
+  isSocketIoPath,
+} from "../src/host.mjs";
 
 test("bootstrap stays loopback; LAN hosts are allowed for the table", () => {
   assert.equal(isLoopbackHost("127.0.0.1:5173"), true);
@@ -14,4 +19,21 @@ test("bootstrap stays loopback; LAN hosts are allowed for the table", () => {
   assert.equal(isAllowedHost("169.254.1.1"), true);
   assert.equal(isAllowedHost("localhost:5173"), true);
   assert.equal(isAllowedHost("8.8.8.8"), false);
+});
+
+test("socket.io paths skip the SPA handler; upgrades use the host allowlist", () => {
+  assert.equal(isSocketIoPath("/socket.io/"), true);
+  assert.equal(isSocketIoPath("/socket.io"), true);
+  assert.equal(isSocketIoPath("/api/health"), false);
+  let allowed;
+  allowSocketRequest({ headers: { host: "192.168.1.8:5173" } }, (err, ok) => {
+    assert.equal(err, null);
+    allowed = ok;
+  });
+  assert.equal(allowed, true);
+  allowSocketRequest({ headers: { host: "8.8.8.8" } }, (err, ok) => {
+    assert.equal(err, null);
+    allowed = ok;
+  });
+  assert.equal(allowed, false);
 });

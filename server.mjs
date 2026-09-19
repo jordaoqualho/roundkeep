@@ -5,7 +5,12 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { Server } from "socket.io";
 import { createRooms } from "./src/room.mjs";
-import { isAllowedHost, isLoopbackHost } from "./src/host.mjs";
+import {
+  allowSocketRequest,
+  isAllowedHost,
+  isLoopbackHost,
+  isSocketIoPath,
+} from "./src/host.mjs";
 
 const root = process.cwd(),
   production = process.env.NODE_ENV === "production";
@@ -45,6 +50,7 @@ const server = http.createServer(async (req, res) => {
       res.end("Local access only");
       return;
     }
+    if (isSocketIoPath(url.pathname)) return;
     res.setHeader("X-Content-Type-Options", "nosniff");
     if (url.pathname.startsWith("/private-data/")) {
       res.writeHead(404);
@@ -152,7 +158,10 @@ const server = http.createServer(async (req, res) => {
     res.end("Falha ao carregar recurso");
   }
 });
-const io = new Server(server, { cors: { origin: true } });
+const io = new Server(server, {
+  cors: { origin: true },
+  allowRequest: allowSocketRequest,
+});
 io.on("connection", (socket) => {
   socket.on("join encounter", (roomId) => {
     if (!roomId || typeof roomId !== "string") return;

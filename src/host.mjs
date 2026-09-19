@@ -22,3 +22,11 @@ export function isAllowedHost(host) {
   if (/^169\.254\.\d{1,3}\.\d{1,3}$/.test(h)) return true;
   return false;
 }
+
+export function isSocketIoPath(pathname) {
+  return String(pathname || "").startsWith("/socket.io");
+}
+
+export function allowSocketRequest(req, cb) {
+  cb(null, isAllowedHost(req?.headers?.host));
+}
