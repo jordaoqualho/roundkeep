@@ -1320,6 +1320,12 @@ main {
   padding: 3px 6px;
 }
 
+.condition-chip small {
+  color: var(--muted);
+  font-size: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
 .reaction-row {
   display: flex;
   align-items: center;
@@ -1746,7 +1752,11 @@ textarea::placeholder {
 
 input[type="checkbox"],
 input[type="radio"] {
+  appearance: auto;
+  -webkit-appearance: auto;
+  width: auto;
   min-height: auto;
+  padding: 0;
   accent-color: var(--accent);
 }
 
@@ -1976,12 +1986,19 @@ select::-ms-expand {
 
 #condition-form {
   display: flex;
-  gap: 8px;
-  align-items: end;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
 }
 
-#condition-form label {
-  flex: 1;
+#condition-form > .primary {
+  align-self: flex-end;
+}
+
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 }
 
 .menu-actions {

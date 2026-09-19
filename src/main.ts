@@ -39,15 +39,20 @@ import {
   Zap,
 } from "lucide";
 import {
+  addTag,
   advance,
   applyHP,
   clamp,
   type Combatant,
+  concentrationDC,
+  constitutionMod,
   createCombatant,
   emptyEncounter,
   type Encounter,
+  endConcentration,
   id,
   importOriginal,
+  isConcentrating,
   num,
   ordered,
   removeCombatant,
@@ -57,9 +62,11 @@ import {
   restoreTable,
   snapshotTable,
   type State,
+  syncConditions,
   type TableSnapshot,
   validateState,
 } from "./model";
+import { projectEncounter } from "./projection";
 import { catalogue, get, put, saveState } from "./storage";
 import "./style.css";
 const icons: Record<string, any> = {
@@ -179,25 +186,8 @@ function toast(message: string) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove("show"), 4000);
 }
-function projection() {
-  return {
-    name: state.encounter.name,
-    round: state.encounter.round,
-    activeId: state.encounter.activeId,
-    combatants: ordered(state.encounter)
-      .filter((c) => !c.hidden)
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        side: c.side,
-        initiative: c.initiative,
-        conditions: c.conditions,
-        health: c.hp === 0 ? "Down" : c.hp <= c.maxHp / 2 ? "Bloodied" : "Healthy",
-      })),
-  };
-}
 function broadcast() {
-  channel.postMessage({ type: "state", data: projection() });
+  channel.postMessage({ type: "state", data: projectEncounter(state.encounter) });
 }
 function persist() {
   state.updatedAt = new Date().toISOString();
@@ -527,7 +517,7 @@ function renderDetails() {
   const c = selectedC();
   if (!c)
     return `<div class="panel-title"><div><h2>Combat sheet</h2></div>${icon("BookOpen", 20)}</div><div class="detail-empty">${icon("BookOpen", 42)}<h3>Select a combatant</h3><p>Select a combatant to view their stat block, actions, and conditions.</p></div>`;
-  return `<div class="detail-header">${btn("back-to-combat", "Combat", "ChevronLeft", "back-to-combat text-button")}<h3>Sheet</h3>${btn("edit", "", "Pencil", "icon-button", `data-id="${c.id}" aria-label="Edit combatant"`)}</div><div class="detail-identity">${avatar(c, true)}<span class="badge ${c.side}">${c.side === "ally" ? "Ally" : "Enemy"}</span><h2>${esc(c.name)}</h2><p>${esc(c.stat.Type || "Custom combatant")}</p></div><div class="stat-tiles"><div>${icon("Heart", 16)}<strong>${c.hp}<small>/${c.maxHp}</small></strong><span>HP</span></div><div>${icon("Shield", 16)}<strong>${c.ac}</strong><span>AC</span></div><div>${icon("Zap", 16)}<strong>${num(c.stat.InitiativeModifier) >= 0 ? "+" : ""}${num(c.stat.InitiativeModifier)}</strong><span>Initiative</span></div></div><div class="detail-content"><div class="section-line"><h3>Conditions</h3>${btn("conditions", "", "Plus", "tiny-button", 'aria-label="Add condition"')}</div><div class="condition-tags">${c.conditions.length ? c.conditions.map((x) => btn("remove-condition", esc(x) + " ×", undefined, "condition-chip", `data-condition="${esc(x)}"`)).join("") : '<span class="muted">No active conditions</span>'}</div><div class="reaction-row"><span>Reaction available</span><button class="toggle ${!c.reaction ? "on" : ""}" data-action="reaction" role="switch" aria-checked="${!c.reaction}" aria-label="Reaction available"><i></i></button></div>${renderStat(c.stat)}<h3>Combatant notes</h3><textarea id="combatant-notes" placeholder="Concentration, objectives, reminders…">${esc(c.notes)}</textarea></div>`;
+  return `<div class="detail-header">${btn("back-to-combat", "Combat", "ChevronLeft", "back-to-combat text-button")}<h3>Sheet</h3>${btn("edit", "", "Pencil", "icon-button", `data-id="${c.id}" aria-label="Edit combatant"`)}</div><div class="detail-identity">${avatar(c, true)}<span class="badge ${c.side}">${c.side === "ally" ? "Ally" : "Enemy"}</span><h2>${esc(c.name)}</h2><p>${esc(c.stat.Type || "Custom combatant")}</p></div><div class="stat-tiles"><div>${icon("Heart", 16)}<strong>${c.hp}<small>/${c.maxHp}</small></strong><span>HP</span></div><div>${icon("Shield", 16)}<strong>${c.ac}</strong><span>AC</span></div><div>${icon("Zap", 16)}<strong>${num(c.stat.InitiativeModifier) >= 0 ? "+" : ""}${num(c.stat.InitiativeModifier)}</strong><span>Initiative</span></div></div><div class="detail-content"><div class="section-line"><h3>Conditions</h3>${btn("conditions", "", "Plus", "tiny-button", 'aria-label="Add condition"')}</div><div class="condition-tags">${c.tags.length ? c.tags.map((t) => btn("remove-condition", `${esc(t.text)}${t.remainingRounds !== null ? ` · <small>${t.remainingRounds}</small>` : ""} ×`, undefined, "condition-chip", `data-tag="${t.id}"`)).join("") : '<span class="muted">No active conditions</span>'}</div><div class="reaction-row"><span>Reaction available</span><button class="toggle ${!c.reaction ? "on" : ""}" data-action="reaction" role="switch" aria-checked="${!c.reaction}" aria-label="Reaction available"><i></i></button></div>${renderStat(c.stat)}<h3>Combatant notes</h3><textarea id="combatant-notes" placeholder="Concentration, objectives, reminders…">${esc(c.notes)}</textarea></div>`;
 }
 function renderStat(s: StatBlock) {
   return `${s.Speed?.length ? `<p class="speed"><strong>Speed</strong> ${esc(s.Speed.join(", "))}</p>` : ""}${
@@ -562,6 +552,18 @@ function hpModal(c: Combatant) {
   openModal(
     "Hit Points",
     `<div class="hp-modal-identity">${avatar(c)}<div><strong>${esc(c.name)}</strong><p>${c.hp} / ${c.maxHp} HP${c.tempHp ? " · " + c.tempHp + " temporary" : ""}</p></div></div><form id="hp-form"><label>Amount<input name="amount" type="number" min="0" max="999999" value="1" required autofocus></label><div class="modal-actions three"><button name="mode" value="damage" class="danger" type="submit">${icon("Swords")}Apply damage</button><button name="mode" value="heal" class="primary" type="submit">${icon("Heart")}Heal</button><button name="mode" value="temp" class="secondary" type="submit">+ Temporary</button></div></form>`,
+  );
+}
+function concentrationModal(c: Combatant, taken: number) {
+  const dc = concentrationDC(taken);
+  openModal(
+    `${esc(c.name)} is concentrating`,
+    `<p>DC ${dc} Constitution saving throw (took ${taken} damage).</p>
+     <div class="modal-actions">
+       ${btn("concentration-keep", "Pass", undefined, "secondary", `data-id="${c.id}"`)}
+       ${btn("concentration-roll", "Roll", "Dices", "secondary", `data-id="${c.id}" data-dc="${dc}"`)}
+       ${btn("concentration-fail", "Fail", undefined, "primary", `data-id="${c.id}"`)}
+     </div>`,
   );
 }
 function featureFields(key: string, features: any[] = []) {
@@ -750,23 +752,53 @@ async function action(kind: string, el: HTMLElement) {
       if (c) change(() => (c.reaction = !c.reaction));
       break;
     case "remove-condition":
-      if (c) change(() => (c.conditions = c.conditions.filter((x) => x !== el.dataset.condition)));
+      if (c)
+        change(() => {
+          c.tags = c.tags.filter((t) => t.id !== el.dataset.tag);
+          syncConditions(c);
+        });
       break;
     case "conditions":
       if (c)
         openModal(
           "Conditions",
-          `<div class="condition-picker">${["Frightened", "Grappled", "Stunned", "Prone", "Blinded", "Charmed", "Poisoned", "Restrained", "Incapacitated", "Unconscious", "Invisible", "Paralyzed", "Petrified", "Deafened", "Concentration", "Exhaustion"].map((x) => btn("toggle-condition", esc(x), c.conditions.includes(x) ? "Check" : "Plus", c.conditions.includes(x) ? "selected" : "", `data-condition="${x}" aria-pressed="${c.conditions.includes(x)}"`)).join("")}</div><form id="condition-form"><label>Custom condition<input name="condition" maxlength="60" placeholder="e.g. Hunter's mark" required></label><button class="primary">Add</button></form>`,
+          `<div class="condition-picker">${["Frightened", "Grappled", "Stunned", "Prone", "Blinded", "Charmed", "Poisoned", "Restrained", "Incapacitated", "Unconscious", "Invisible", "Paralyzed", "Petrified", "Deafened", "Concentration", "Exhaustion"].map((x) => btn("toggle-condition", esc(x), c.conditions.includes(x) ? "Check" : "Plus", c.conditions.includes(x) ? "selected" : "", `data-condition="${x}" aria-pressed="${c.conditions.includes(x)}"`)).join("")}</div><form id="condition-form"><div class="form-grid"><label class="full">Custom condition<input name="condition" maxlength="60" placeholder="e.g. Hunter's mark" required></label><label>Duration in rounds<input name="rounds" type="number" min="1" max="99" placeholder="Until removed"></label><label>Ticks<select name="timing"><option value="end">End of turn</option><option value="start">Start of turn</option></select></label><label class="full">Whose turn<select name="until">${e.combatants.map((x) => `<option value="${x.id}" ${x.id === c.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label><label class="check full"><input type="checkbox" name="hidden"> Hidden from players</label><label class="check full"><input type="checkbox" name="concentration"> Concentration</label></div><button class="primary">Add</button></form>`,
         );
       break;
     case "toggle-condition":
       if (c) {
         change(() => {
           const x = el.dataset.condition!;
-          c.conditions = c.conditions.includes(x) ? c.conditions.filter((t) => t !== x) : [...c.conditions, x];
+          if (c.tags.some((t) => t.text === x)) {
+            c.tags = c.tags.filter((t) => t.text !== x);
+            syncConditions(c);
+          } else addTag(c, { text: x, concentration: x === "Concentration" });
         });
         el.classList.toggle("selected", c.conditions.includes(el.dataset.condition!));
         el.setAttribute("aria-pressed", String(c.conditions.includes(el.dataset.condition!)));
+      }
+      break;
+    case "concentration-keep":
+      closeModal();
+      break;
+    case "concentration-fail":
+      if (c) {
+        closeModal();
+        change(() => endConcentration(c), `${c.name} lost concentration.`);
+      }
+      break;
+    case "concentration-roll":
+      if (c) {
+        const dc = num(el.dataset.dc, concentrationDC(0));
+        const total = roll("1d20").total + constitutionMod(c);
+        if (total >= dc) {
+          toast(`${c.name} kept concentration (${total} vs DC ${dc}).`);
+          closeModal();
+        } else {
+          closeModal();
+          change(() => endConcentration(c), `${c.name} lost concentration.`);
+          toast(`${c.name} lost concentration (${total} vs DC ${dc}).`);
+        }
       }
       break;
     case "add-feature":
@@ -1114,10 +1146,14 @@ document.addEventListener("submit", (event) => {
         if (!mode) break;
         const amount = num(value("amount"));
         closeModal();
+        let taken = 0;
         change(
-          () => applyHP(c, amount, mode),
+          () => {
+            taken = applyHP(c, amount, mode).taken;
+          },
           `${c.name}: ${amount} ${mode === "damage" ? "damage" : mode === "heal" ? "healing" : "temporary HP"}.`,
         );
+        if (mode === "damage" && taken > 0 && isConcentrating(c)) concentrationModal(c, taken);
         break;
       }
       case "creature-form": {
@@ -1203,8 +1239,21 @@ document.addEventListener("submit", (event) => {
       case "condition-form": {
         const c = selectedC(),
           condition = value("condition").trim();
-        if (c && condition && !c.conditions.includes(condition)) {
-          change(() => c.conditions.push(condition));
+        if (c && condition) {
+          const rounds = value("rounds").trim();
+          const n = Math.floor(num(rounds));
+          change(() => {
+            addTag(c, {
+              text: condition,
+              remainingRounds: rounds === "" || n < 1 ? null : Math.min(99, n),
+              timing: value("timing") === "start" ? "start" : "end",
+              untilCombatantId: state.encounter.combatants.some((x) => x.id === value("until"))
+                ? value("until")
+                : c.id,
+              hidden: fd.get("hidden") === "on",
+              concentration: fd.get("concentration") === "on",
+            });
+          });
           closeModal();
         }
         break;
