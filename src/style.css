@@ -1579,7 +1579,7 @@ dialog.wide {
 }
 
 dialog::backdrop {
-  background: rgba(0, 0, 0, 0.62);
+  background: rgba(18, 18, 18, 0.72);
 }
 
 .modal-head {
@@ -1786,7 +1786,7 @@ select::-ms-expand {
   min-height: 32px;
   padding: 0 8px;
   justify-content: space-between;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-size: 12px;
 }
@@ -1797,7 +1797,7 @@ select::-ms-expand {
 }
 
 .select-option[aria-selected="true"] {
-  color: var(--accent-strong);
+  color: var(--accent);
 }
 
 .command-palette {
@@ -1856,7 +1856,7 @@ select::-ms-expand {
   padding: 0 8px;
   justify-content: flex-start;
   gap: 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-size: 13px;
 }
@@ -1924,15 +1924,15 @@ select::-ms-expand {
 .condition-picker button {
   border: 1px solid var(--line);
   padding: 6px 8px;
-  border-radius: 5px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   color: var(--muted);
 }
 
 .condition-picker button.selected {
-  color: var(--accent-strong);
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  color: var(--accent);
+  background: var(--surface);
+  border-color: var(--accent);
 }
 
 #condition-form {
@@ -2199,10 +2199,10 @@ select::-ms-expand {
   align-items: center;
   justify-content: center;
   min-height: 100dvh;
-  font-family: "Manrope", sans-serif;
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
   font-size: var(--fs-title);
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.007em;
   gap: 10px;
   color: var(--text);
 }
@@ -2222,7 +2222,7 @@ select::-ms-expand {
   pointer-events: none;
   background: var(--panel);
   color: var(--text);
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 10px 14px;
   box-shadow: none;
