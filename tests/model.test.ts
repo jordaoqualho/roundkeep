@@ -1,16 +1,34 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  addTag,
+  addHeroToEncounter,
   applyHP,
+  concentrationDC,
+  constitutionMod,
   createCombatant,
   emptyEncounter,
   advance,
+  cleanEncounter,
+  endConcentration,
+  isConcentrating,
+  linkInitiative,
+  moveCombatant,
   ordered,
+  reindexSort,
+  quickAddCombatant,
   removeCombatant,
+  restoreTable,
+  rollCombatantInitiative,
   roll,
   importOriginal,
+  snapshotTable,
+  syncPersistentHp,
+  upsertHeroFromStat,
   validateState,
+  type PersistentCharacter,
   type State,
+  type Tag,
 } from "../src/model.ts";
 const stat = {
   Id: "goblin",
@@ -58,6 +76,26 @@ test("turns sort descending and round trips across round boundaries", () => {
   assert.equal(e.round, 1);
   assert.equal(e.activeId, b.id);
 });
+test("linked combatants share one roll and move as a block", () => {
+  const e = emptyEncounter();
+  const leader = createCombatant({ ...stat, Name: "Pack" });
+  const mate = createCombatant({ ...stat, Name: "Pack" });
+  const hero = createCombatant({ ...stat, Name: "Hero", Player: "player" });
+  leader.initiative = 5;
+  mate.initiative = 5;
+  hero.initiative = 10;
+  e.combatants = [leader, mate, hero];
+  linkInitiative(e, [leader.id, mate.id]);
+  rollCombatantInitiative(e, leader, () => 0);
+  assert.equal(leader.initiative, mate.initiative);
+  assert.equal(leader.initiative, 3);
+  reindexSort(e);
+  assert.equal(ordered(e)[0].id, hero.id);
+  moveCombatant(e, leader.id, -1);
+  assert.equal(ordered(e)[0].initiativeGroup, leader.initiativeGroup);
+  assert.equal(ordered(e)[2].id, hero.id);
+});
+
 test("initiative edits keep current combatant; ties use modifier", () => {
   const e = emptyEncounter(),
     a = createCombatant(stat),
@@ -130,6 +168,7 @@ test("original backup imports custom creatures, characters, spell and encounter 
   };
   const r = importOriginal(raw);
   assert.equal(r.library.length, 2);
+  assert.equal(r.characters.length, 1);
   assert.equal(r.library[0].InitiativeModifier, 4);
   assert.equal(r.library[1].ImportedCurrentHP, 5);
   assert.equal(r.library[1].ImportedNotes, "secret");
@@ -137,8 +176,55 @@ test("original backup imports custom creatures, characters, spell and encounter 
   assert.equal(r.encounter?.combatants[0].hp, 4);
   assert.equal(r.encounter?.combatants[0].tempHp, 2);
   assert.deepEqual(r.encounter?.combatants[0].conditions, ["Poisoned"]);
+  assert.equal(r.encounter?.combatants[0].tags[0].text, "Poisoned");
   assert.equal(r.encounter?.combatants[0].hidden, true);
   assert.equal(r.encounter?.activeId, "c");
+  const validated = validateState({
+    version: 1,
+    encounter: r.encounter,
+    library: [],
+    spells: [],
+    saved: [],
+    characters: [],
+    party: { size: 4, level: 3 },
+    updatedAt: "",
+  });
+  assert.deepEqual(validated.encounter.combatants[0].conditions, ["Poisoned"]);
+  assert.equal(validated.encounter.combatants[0].tags[0].text, "Poisoned");
+});
+test("persistent characters keep HP across encounters and import CurrentHP", () => {
+  const characters: PersistentCharacter[] = [];
+  const hero = upsertHeroFromStat(
+    characters,
+    { ...stat, Name: "Hero", Player: "player" },
+    5,
+    "secret",
+  );
+  assert.equal(characters.length, 1);
+  assert.equal(hero.currentHp, 5);
+  const e1 = emptyEncounter();
+  const c = addHeroToEncounter(e1, hero);
+  assert.equal(c.hp, 5);
+  assert.equal(c.persistentId, hero.id);
+  applyHP(c, 2, "heal");
+  syncPersistentHp(characters, c);
+  assert.equal(characters[0].currentHp, 7);
+  const e2 = emptyEncounter();
+  const again = addHeroToEncounter(e2, characters[0]);
+  assert.equal(again.hp, 7);
+  const raw = {
+    "PersistentCharacters.a": {
+      Id: "a",
+      Name: "Hero",
+      CurrentHP: 5,
+      Notes: "secret",
+      StatBlock: stat,
+    },
+  };
+  const imported = importOriginal(raw);
+  assert.equal(imported.characters.length, 1);
+  assert.equal(imported.characters[0].currentHp, 5);
+  assert.equal(imported.library.filter((s) => s.Player).length, 1);
 });
 test("backup validation rejects invalid HP, duplicate ids and invalid active turn", () => {
   const s: State = {
@@ -147,6 +233,8 @@ test("backup validation rejects invalid HP, duplicate ids and invalid active tur
     library: [],
     spells: [],
     saved: [],
+    characters: [],
+    party: { size: 4, level: 3 },
     updatedAt: "",
   };
   s.encounter.combatants = [createCombatant(stat)];
@@ -160,4 +248,190 @@ test("backup validation rejects invalid HP, duplicate ids and invalid active tur
   invalid.encounter.activeId = null;
   invalid.encounter.combatants.push(invalid.encounter.combatants[0]);
   assert.throws(() => validateState(invalid));
+});
+
+function bless(c: { id: string }, rounds = 1): Tag {
+  return {
+    id: "tag-bless",
+    text: "Bless",
+    remainingRounds: rounds,
+    timing: "end",
+    untilCombatantId: c.id,
+    hidden: false,
+    concentration: false,
+  };
+}
+
+test("timed tags expire at end of the anchored combatant's turn; backward does not restore them", () => {
+  const e = emptyEncounter();
+  const a = createCombatant(stat);
+  const b = createCombatant(stat);
+  a.initiative = 20;
+  b.initiative = 10;
+  a.tags = [bless(a, 1)];
+  e.combatants = [a, b];
+  advance(e);
+  assert.equal(e.activeId, a.id);
+  assert.equal(a.tags[0].remainingRounds, 1);
+  advance(e);
+  assert.equal(e.activeId, b.id);
+  assert.equal(a.tags.length, 0);
+  assert.deepEqual(a.conditions, []);
+  advance(e, -1);
+  assert.equal(e.activeId, a.id);
+  assert.equal(a.tags.length, 0);
+});
+
+test("start-of-turn tags tick when that combatant becomes active; null remaining never expires", () => {
+  const e = emptyEncounter();
+  const a = createCombatant(stat);
+  const b = createCombatant(stat);
+  a.initiative = 20;
+  b.initiative = 10;
+  b.tags = [
+    {
+      id: "stun",
+      text: "Stunned",
+      remainingRounds: 1,
+      timing: "start",
+      untilCombatantId: b.id,
+      hidden: false,
+      concentration: false,
+    },
+    {
+      id: "mark",
+      text: "Hunter's mark",
+      remainingRounds: null,
+      timing: "end",
+      untilCombatantId: b.id,
+      hidden: false,
+      concentration: false,
+    },
+  ];
+  e.combatants = [a, b];
+  advance(e);
+  advance(e);
+  assert.equal(e.activeId, b.id);
+  assert.equal(b.tags.map((t) => t.text).join(","), "Hunter's mark");
+  assert.equal(b.tags[0].remainingRounds, null);
+});
+
+test("concentration DC uses full damage including temp HP; fail strips concentration tags only", () => {
+  const c = createCombatant({
+    ...stat,
+    Abilities: { ...stat.Abilities, Con: 14 },
+  });
+  addTag(c, { text: "Concentration", concentration: true });
+  addTag(c, { text: "Bless", remainingRounds: 10, concentration: true });
+  addTag(c, { text: "Poisoned" });
+  applyHP(c, 6, "temp");
+  const result = applyHP(c, 14, "damage");
+  assert.equal(result.taken, 14);
+  assert.equal(c.hp, 2);
+  assert.equal(concentrationDC(result.taken), 10);
+  assert.equal(concentrationDC(22), 11);
+  assert.equal(isConcentrating(c), true);
+  endConcentration(c);
+  assert.equal(isConcentrating(c), false);
+  assert.deepEqual(c.conditions, ["Poisoned"]);
+  assert.equal(constitutionMod(c), 2);
+});
+
+test("quick add builds a nameless mook; clean strips dead enemies and restores ally HP", () => {
+  const mook = quickAddCombatant("Bandit", 12);
+  assert.equal(mook.name, "Bandit");
+  assert.equal(mook.hp, 12);
+  assert.equal(mook.ac, 10);
+  assert.equal(mook.side, "enemy");
+  assert.equal(mook.stat.Type, "Quick add");
+  assert.throws(() => quickAddCombatant("  ", 12));
+  assert.throws(() => quickAddCombatant("Bandit", 0));
+  const e = emptyEncounter();
+  const heroStat = { ...stat, Name: "Hero", Player: "player" };
+  const characters: PersistentCharacter[] = [];
+  const hero = upsertHeroFromStat(characters, heroStat, 4);
+  const pc = addHeroToEncounter(e, hero);
+  const dead = createCombatant(stat);
+  const living = createCombatant(stat);
+  dead.hp = 0;
+  living.hp = 3;
+  pc.tempHp = 2;
+  e.combatants.push(dead, living);
+  e.started = true;
+  e.round = 2;
+  e.activeId = dead.id;
+  cleanEncounter(e, characters);
+  assert.equal(e.combatants.some((c) => c.id === dead.id), false);
+  assert.equal(living.hp, 3);
+  assert.equal(pc.hp, pc.maxHp);
+  assert.equal(pc.tempHp, 0);
+  assert.equal(characters[0].currentHp, pc.maxHp);
+  assert.equal(e.round, 2);
+});
+
+test("party budget defaults and rejects out of range; snapshot restores hero HP", () => {
+  const s = {
+    version: 1 as const,
+    encounter: emptyEncounter(),
+    library: [],
+    spells: [],
+    saved: [],
+    characters: [],
+    updatedAt: "",
+  } as unknown as State;
+  const v = validateState(s);
+  assert.equal(v.party.size, 4);
+  assert.equal(v.party.level, 3);
+  v.party.size = 99;
+  assert.throws(() => validateState(v));
+  const characters: PersistentCharacter[] = [];
+  const hero = upsertHeroFromStat(
+    characters,
+    { ...stat, Name: "Hero", Player: "player" },
+    10,
+  );
+  const e = emptyEncounter();
+  const c = addHeroToEncounter(e, hero);
+  const table = { encounter: e, characters };
+  const snap = snapshotTable(table);
+  applyHP(c, 9, "damage");
+  syncPersistentHp(characters, c);
+  restoreTable(table, snap);
+  assert.equal(table.encounter.combatants[0].hp, 10);
+  assert.equal(table.characters[0].currentHp, 10);
+});
+
+test("legacy conditions strings migrate into untimed tags", () => {
+  const c = createCombatant(stat);
+  (c as { tags?: Tag[] }).tags = undefined;
+  c.conditions = ["Poisoned"];
+  const s = {
+    version: 1 as const,
+    encounter: { ...emptyEncounter(), combatants: [c] },
+    library: [],
+    spells: [],
+    saved: [],
+    characters: [],
+    party: { size: 4, level: 3 },
+    updatedAt: "",
+  };
+  const v = validateState(s);
+  assert.equal(v.encounter.combatants[0].tags[0].text, "Poisoned");
+  assert.equal(v.encounter.combatants[0].tags[0].remainingRounds, null);
+  assert.deepEqual(v.encounter.combatants[0].conditions, ["Poisoned"]);
+  const emptyTags = createCombatant(stat);
+  emptyTags.tags = [];
+  emptyTags.conditions = ["Poisoned"];
+  const fromEmpty = validateState({
+    version: 1,
+    encounter: { ...emptyEncounter(), combatants: [emptyTags] },
+    library: [],
+    spells: [],
+    saved: [],
+    characters: [],
+    party: { size: 4, level: 3 },
+    updatedAt: "",
+  });
+  assert.equal(fromEmpty.encounter.combatants[0].tags[0].text, "Poisoned");
+  assert.deepEqual(fromEmpty.encounter.combatants[0].conditions, ["Poisoned"]);
 });

@@ -1,7 +1,17 @@
 import http from "node:http";
+import os from "node:os";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { Server } from "socket.io";
+import { createRooms } from "./src/room.mjs";
+import {
+  allowSocketRequest,
+  isAllowedHost,
+  isLoopbackRequest,
+  isSocketIoPath,
+} from "./src/host.mjs";
+
 const root = process.cwd(),
   production = process.env.NODE_ENV === "production";
 const vite = production
@@ -18,14 +28,29 @@ const mime = {
   ".pdf": "application/pdf",
   ".woff2": "font/woff2",
 };
+
+function playerUrls(roomId, port) {
+  const hosts = new Set(["127.0.0.1"]);
+  for (const addrs of Object.values(os.networkInterfaces())) {
+    for (const addr of addrs || []) {
+      if ((addr.family === "IPv4" || addr.family === 4) && !addr.internal) {
+        hosts.add(addr.address);
+      }
+    }
+  }
+  return [...hosts].map((host) => `http://${host}:${port}/p/${roomId}`);
+}
+
+const rooms = createRooms();
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://localhost");
-    if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || "")) {
+    if (!isAllowedHost(req.headers.host)) {
       res.writeHead(403);
       res.end("Local access only");
       return;
     }
+    if (isSocketIoPath(url.pathname)) return;
     res.setHeader("X-Content-Type-Options", "nosniff");
     if (url.pathname.startsWith("/private-data/")) {
       res.writeHead(404);
@@ -38,6 +63,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (url.pathname === "/api/bootstrap") {
+      if (!isLoopbackRequest(req)) {
+        res.writeHead(403);
+        res.end("Local access only");
+        return;
+      }
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Content-Type", "application/json");
       try {
@@ -49,6 +79,28 @@ const server = http.createServer(async (req, res) => {
       } catch {
         res.end("{}");
       }
+      return;
+    }
+    if (url.pathname === "/api/player-info") {
+      if (!isLoopbackRequest(req)) {
+        res.writeHead(403);
+        res.end("Local access only");
+        return;
+      }
+      const roomId = url.searchParams.get("room") || "";
+      if (!roomId) {
+        res.writeHead(400);
+        res.end();
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          roomId,
+          urls: playerUrls(roomId, Number(process.env.PORT || 5173)),
+        }),
+      );
       return;
     }
     if (url.pathname === "/api/health") {
@@ -106,6 +158,48 @@ const server = http.createServer(async (req, res) => {
     res.end("Falha ao carregar recurso");
   }
 });
-server.listen(Number(process.env.PORT || 5173), "127.0.0.1", () =>
-  console.log("RoundKeep → http://localhost:" + (process.env.PORT || 5173)),
+const io = new Server(server, {
+  cors: { origin: true },
+  allowRequest: allowSocketRequest,
+});
+io.on("connection", (socket) => {
+  socket.on("join encounter", (payload) => {
+    const roomId =
+      typeof payload === "string"
+        ? payload
+        : payload && typeof payload === "object"
+          ? payload.roomId
+          : null;
+    if (!roomId || typeof roomId !== "string") return;
+    socket.data.roomId = roomId;
+    socket.data.role =
+      payload && typeof payload === "object" && payload.role === "table"
+        ? "table"
+        : "player";
+    socket.join(roomId);
+    const snapshot = rooms.get(roomId);
+    if (snapshot) socket.emit("encounter updated", snapshot);
+  });
+  socket.on("request encounter", (roomId) => {
+    const id =
+      typeof roomId === "string" && roomId ? roomId : socket.data.roomId;
+    const snapshot = rooms.get(id);
+    if (snapshot) socket.emit("encounter updated", snapshot);
+  });
+  socket.on("update encounter", (roomId, projection) => {
+    if (socket.data.role !== "table") return;
+    if (!roomId || typeof roomId !== "string") return;
+    rooms.update(roomId, projection);
+    io.to(roomId).emit("encounter updated", projection);
+  });
+  socket.on("disconnect", () => {
+    const roomId = socket.data.roomId;
+    if (!roomId) return;
+    const remaining = io.sockets.adapter.rooms.get(roomId)?.size ?? 0;
+    if (remaining === 0) rooms.drop(roomId);
+  });
+});
+const port = Number(process.env.PORT || 5173);
+server.listen(port, "0.0.0.0", () =>
+  console.log("RoundKeep → http://localhost:" + port),
 );

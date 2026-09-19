@@ -1,4 +1,6 @@
 import {
+  ArrowDown,
+  ArrowUp,
   ArrowUpRight,
   BookOpen,
   Check,
@@ -18,6 +20,7 @@ import {
   Heart,
   Keyboard,
   Layers,
+  Link,
   MoreHorizontal,
   Pause,
   Pencil,
@@ -39,25 +42,47 @@ import {
   Zap,
 } from "lucide";
 import {
+  addHeroToEncounter,
+  addTag,
   advance,
   applyHP,
   clamp,
+  cleanEncounter,
   type Combatant,
+  concentrationDC,
+  constitutionMod,
   createCombatant,
   emptyEncounter,
   type Encounter,
+  endConcentration,
   id,
   importOriginal,
+  isConcentrating,
+  linkInitiative,
+  moveCombatant,
   num,
   ordered,
+  type PersistentCharacter,
+  quickAddCombatant,
   removeCombatant,
+  restoreTable,
   roll,
+  rollEncounterInitiative,
+  snapshotTable,
   type Spell,
   type StatBlock,
   type State,
+  syncConditions,
+  syncPersistentHp,
+  type TableSnapshot,
+  unlinkInitiative,
+  upsertHeroFromStat,
   validateState,
 } from "./model";
+import { encounterDifficulty } from "./difficulty";
+import { projectEncounter } from "./projection";
 import { catalogue, get, put, saveState } from "./storage";
+import { io } from "socket.io-client";
 import "./style.css";
 const icons: Record<string, any> = {
   Swords,
@@ -93,6 +118,9 @@ const icons: Record<string, any> = {
   WifiOff,
   Database,
   ArrowUpRight,
+  ArrowUp,
+  ArrowDown,
+  Link,
   Flag,
   CheckCheck,
   Zap,
@@ -159,7 +187,7 @@ let state: State,
   query = "",
   source = "all",
   view = "combat",
-  history: Encounter[] = [],
+  history: TableSnapshot[] = [],
   preview: StatBlock | Spell | null = null,
   editingStat: StatBlock | undefined,
   saveError = false,
@@ -167,8 +195,10 @@ let state: State,
   saveQueue = Promise.resolve(),
   toastTimer: ReturnType<typeof setTimeout>,
   ready = false;
-const playerMode = new URLSearchParams(location.search).has("player");
+const playerRoom = location.pathname.match(/^\/p\/([^/]+)\/?$/)?.[1] || "";
+const playerMode = new URLSearchParams(location.search).has("player") || !!playerRoom;
 const channel = new BroadcastChannel("roundkeep-player");
+let tableSocket: ReturnType<typeof io> | null = null;
 function toast(message: string) {
   const el = document.querySelector("#toast")!;
   el.textContent = message;
@@ -176,25 +206,8 @@ function toast(message: string) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove("show"), 4000);
 }
-function projection() {
-  return {
-    name: state.encounter.name,
-    round: state.encounter.round,
-    activeId: state.encounter.activeId,
-    combatants: ordered(state.encounter)
-      .filter((c) => !c.hidden)
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        side: c.side,
-        initiative: c.initiative,
-        conditions: c.conditions,
-        health: c.hp === 0 ? "Down" : c.hp <= c.maxHp / 2 ? "Bloodied" : "Healthy",
-      })),
-  };
-}
 function broadcast() {
-  channel.postMessage({ type: "state", data: projection() });
+  channel.postMessage({ type: "state", data: projectEncounter(state.encounter) });
 }
 function persist() {
   state.updatedAt = new Date().toISOString();
@@ -216,6 +229,42 @@ function persist() {
       updateSaveStatus();
     });
   broadcast();
+  if (tableSocket?.connected) {
+    tableSocket.emit("update encounter", state.encounter.id, projectEncounter(state.encounter));
+  }
+}
+function fallbackPlayerUrl(roomId: string) {
+  return `${location.origin}/p/${roomId}`;
+}
+async function playerShareUrls(roomId: string) {
+  try {
+    const response = await fetch(`/api/player-info?room=${encodeURIComponent(roomId)}`);
+    if (!response.ok) throw new Error();
+    const data = await response.json();
+    if (Array.isArray(data.urls) && data.urls.length) return data.urls as string[];
+  } catch {}
+  return [fallbackPlayerUrl(roomId)];
+}
+function playerShareHtml(urls: string[]) {
+  return urls
+    .map(
+      (url) =>
+        `<div class="player-share-row"><code>${esc(url)}</code>${btn("copy-player-url", "Copy", "Copy", "secondary", `data-url="${esc(url)}"`)}</div>`,
+    )
+    .join("");
+}
+async function fillPlayerShare() {
+  const target = modal.querySelector("#player-share-urls");
+  if (!target) return;
+  const urls = await playerShareUrls(state.encounter.id);
+  target.innerHTML = playerShareHtml(urls);
+}
+function showPlayerShare(title: string, intro: string) {
+  openModal(
+    title,
+    `<div class="settings-section"><h3>${icon("Eye")} Player view</h3><p>${intro}</p><div id="player-share-urls" class="player-share-list"></div></div>`,
+  );
+  void fillPlayerShare();
 }
 function updateSaveStatus() {
   const el = document.querySelector("#save-status");
@@ -225,7 +274,7 @@ function updateSaveStatus() {
       (saveError ? "Save failed" : pendingSaves ? "Saving…" : "Saved in this browser");
 }
 function change(fn: () => void, message?: string) {
-  history.push(structuredClone(state.encounter));
+  history.push(snapshotTable({ encounter: state.encounter, characters: state.characters }));
   if (history.length > 60) history.shift();
   fn();
   if (message) {
@@ -370,6 +419,12 @@ function commandActions() {
       icon: "Users",
     },
     {
+      action: "clean-encounter",
+      label: "Clean encounter",
+      hint: "Remove defeated enemies, restore allies",
+      icon: "Sparkles",
+    },
+    {
       action: "create",
       label: "Create stat block",
       hint: "Combatant or spell",
@@ -459,7 +514,8 @@ function render() {
     cs = ordered(e),
     current = cs.find((c) => c.id === e.activeId),
     allies = cs.filter((c) => c.side === "ally"),
-    enemies = cs.filter((c) => c.side === "enemy");
+    enemies = cs.filter((c) => c.side === "enemy"),
+    diff = encounterDifficulty(e, state.party);
   app.innerHTML = `<aside class="rail"><a class="brand-mark" href="/" aria-label="RoundKeep home" title="RoundKeep · Home"><svg viewBox="0 0 64 64" fill="none"><path fill-rule="evenodd" d="M8 12 H20 V19 H26 V12 H38 V19 H44 V12 H56 V35 C56 48 32 58 32 58 C32 58 8 48 8 35 Z M32 23.5 A10.5 10.5 0 1 0 32.001 23.5 Z" fill="currentColor"/><circle cx="32" cy="34" r="4.5" fill="currentColor"/><path d="M30 34 H34 L32 25 Z" fill="currentColor"/></svg></a><div class="rail-nav">${btn("view-combat", "", "Swords", "rail-button " + (view === "combat" ? "active" : ""), 'aria-label="Combat table" title="Combat table"')}${btn("view-saved", "", "Layers", "rail-button " + (view === "saved" ? "active" : ""), 'aria-label="Saved encounters" title="Saved encounters"')}${btn("notes", "", "ScrollText", "rail-button", 'aria-label="Encounter notes" title="Encounter notes"')}</div><div class="rail-bottom">${btn("help", "", "CircleHelp", "rail-button", 'aria-label="Help and shortcuts"')}${btn("settings", "", "Settings2", "rail-button", 'aria-label="Data and settings"')}<span class="profile" title="Dungeon Master">M</span></div></aside>
  <div class="workspace"><header class="topbar"><div class="topbar-context"><div class="wordmark">ROUND<span class="wordmark-dot">·</span>KEEP</div><div class="breadcrumb">Your table ${icon("ChevronRight", 13)} <strong>${view === "saved" ? "Encounters" : "Current encounter"}</strong></div></div>${btn("open-command", "<span>Search or quick action…</span><kbd>⌘ K</kbd>", "Search", "command-trigger", 'aria-label="Open search and quick actions"')}<div class="top-actions"><span id="save-status" class="save-status"></span>${btn("player", "Player view", "Eye", "subtle")}${btn("settings", "", "Settings2", "icon-button", 'aria-label="Settings"')}</div></header>
  <main><section class="page-heading"><div><h1>${view === "saved" ? "Your encounters" : esc(e.name)} ${view === "combat" ? btn("rename", "", "Pencil", "title-edit", 'aria-label="Rename encounter"') : ""}</h1></div><div class="heading-actions">${btn("save", "Save encounter", "Save", "secondary")}${btn("new", "New encounter", "Plus", "primary")}</div></section>
@@ -474,9 +530,9 @@ function render() {
          .map(([key, label]) => btn("tab", label, undefined, tab === key ? "selected" : "", `data-tab="${key}"`))
          .join(
            "",
-         )}</div><div class="library-search"><label class="searchbox">${icon("Search", 14)}<input id="search" type="search" value="${esc(query)}" placeholder="Search ${tab === "spells" ? "spells" : "library"}…" aria-label="Search library"><kbd>/</kbd></label><select id="source" aria-label="Filter source"><option value="all" ${source === "all" ? "selected" : ""}>All sources</option><option value="personal" ${source === "personal" ? "selected" : ""}>My library</option><option value="srd" ${source === "srd" ? "selected" : ""}>Basic rules (SRD)</option></select></div><div id="library-list" class="library-list">${renderLibrary()}</div><div class="library-footer">${icon("Database", 13)} Offline catalogue available <span>${allCreatures().length}</span></div></aside>
+         )}</div><div class="library-search"><label class="searchbox">${icon("Search", 14)}<input id="search" type="search" value="${esc(query)}" placeholder="Search ${tab === "spells" ? "spells" : "library"}…" aria-label="Search library"><kbd>/</kbd></label><select id="source" aria-label="Filter source"><option value="all" ${source === "all" ? "selected" : ""}>All sources</option><option value="personal" ${source === "personal" ? "selected" : ""}>My library</option><option value="srd" ${source === "srd" ? "selected" : ""}>Basic rules (SRD)</option></select></div><div id="library-list" class="library-list">${renderLibrary()}</div><div class="library-footer">${tab === "creatures" ? `<form id="quick-add-form" class="quick-add"><input name="name" maxlength="80" placeholder="Quick add name" aria-label="Quick add name" required><input name="hp" type="number" min="1" max="9999" value="10" aria-label="Quick add HP" required><button class="primary" type="submit">Add</button></form>` : `${icon("Database", 13)} Offline catalogue available <span>${allCreatures().length}</span>`}</div></aside>
  <section class="battle"><div class="battle-toolbar"><div class="round-icon">${icon("Swords", 18)}</div><div><h2>${e.started ? "Round " + String(e.round).padStart(2, "0") : "Initiative order"}</h2></div><div class="battle-buttons">${e.started ? btn("end-combat", "", "Pause", "icon-button", 'aria-label="End combat" title="End combat"') : ""}${btn("roll-initiative", "", "Dices", "icon-button", 'aria-label="Roll initiative" title="Roll initiative"')}${btn("undo", "", "RotateCcw", "icon-button", `aria-label="Undo last action" title="Undo" ${!history.length ? "disabled" : ""}`)}<span class="divider"></span>${btn("previous", "", "ChevronLeft", "icon-button", `aria-label="Previous turn" ${!e.started ? "disabled" : ""}`)}${btn("next", e.started ? "Next turn" : "Start combat", e.started ? "ChevronRight" : "Play", "primary", `${!cs.length ? "disabled" : ""} title="${e.started ? "Next turn (N)" : "Start combat"}"`)}</div></div>
- <div class="battle-summary"><span><i class="dot ally-dot"></i>${allies.length} allies</span><span><i class="dot enemy-dot"></i>${enemies.length} enemies</span><span class="summary-end">${icon("Users", 14)} ${cs.length} combatants</span></div>
+ <div class="battle-summary"><span><i class="dot ally-dot"></i>${allies.length} allies</span><span><i class="dot enemy-dot"></i>${enemies.length} enemies</span><span class="summary-end">${icon("Users", 14)} ${diff.label === "—" ? cs.length + " combatants" : diff.label + " · " + diff.xp + " XP"}</span></div>
  ${cs.length ? `<div class="table-labels"><span>Init</span><span>Combatant</span><span>HP</span><span>AC</span><span></span></div><div class="combatant-list">${cs.map((c) => renderCombatant(c, e.activeId === c.id)).join("")}</div><div class="add-combatant">${btn("create", "Add combatant", "Plus", "text-button")}${btn("add-party", "Add party", "Users", "text-button")}</div>` : `<div class="empty-combat"><h2>No combatants</h2><p>Use the + button in the library or add your party.</p><div class="empty-actions">${btn("add-party", "Add party", "Users", "primary")}${btn("demo", "Open demo", undefined, "subtle")}</div></div>`}
  <div class="battle-bottom"><div class="encounter-note"><span>${icon("ScrollText", 15)} Notes</span>${btn("notes", e.notes ? esc(e.notes.slice(0, 95)) : "Add encounter notes", undefined, "note-preview")}</div><div class="session-log"><div><h3>Activity</h3>${btn("log", "View history", "ChevronRight", "text-button")}</div><p>${esc(e.log[0] || "No actions recorded.")}</p></div></div>
  <footer class="battle-footer"><span>${icon("Keyboard", 14)} <kbd>N</kbd> next turn <kbd>/</kbd> search <kbd>D</kbd> dice</span>${btn("dice", "Roll dice", "Dices", "text-button")}</footer></section><aside class="details panel">${renderDetails()}</aside></div>`
@@ -486,26 +542,47 @@ function render() {
   enhanceSelects(app);
 }
 function renderLibrary() {
-  let items: (StatBlock | Spell)[] =
-    tab === "spells" ? allSpells() : allCreatures().filter((s) => (tab === "characters" ? !!s.Player : !s.Player));
-  if (source !== "all")
-    items = items.filter((s) =>
-      source === "personal"
-        ? !s.Id.startsWith("creatures-") && !s.Id.startsWith("spells-")
-        : s.Id.startsWith("creatures-") || s.Id.startsWith("spells-"),
-    );
   const q = query
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
-  items = items.filter((s) =>
+  const matchesQuery = (s: { Name: string; Type?: string; Path?: string }) =>
     (s.Name + " " + (s.Type || "") + " " + (s.Path || ""))
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
-      .includes(q),
-  );
-  return `<div class="list-caption">${tab === "characters" ? "Your party" : source === "personal" ? "My library" : "Available stat blocks"}<span>${items.length}</span></div>${
+      .includes(q);
+  const matchesSource = (id: string) =>
+    source === "all"
+      ? true
+      : source === "personal"
+        ? !id.startsWith("creatures-") && !id.startsWith("spells-")
+        : id.startsWith("creatures-") || id.startsWith("spells-");
+  if (tab === "characters") {
+    const heroes = state.characters.filter((h) => matchesQuery(h.stat) && matchesSource(h.stat.Id));
+    const leftover = state.library.filter(
+      (s) => s.Player && !state.characters.some((h) => h.stat.Id === s.Id) && matchesQuery(s) && matchesSource(s.Id),
+    );
+    const rows = [
+      ...heroes.map(
+        (h) =>
+          `<div class="library-item"><button class="library-preview" data-action="preview" data-hero="${esc(h.id)}" data-id="${esc(h.stat.Id)}"><span class="small-glyph green">${icon("Shield", 17)}</span><span><strong>${esc(h.stat.Name)}</strong><small>${h.currentHp}/${h.maxHp} HP</small></span></button>${btn("add", "", "Plus", "add-button", `data-hero="${esc(h.id)}" aria-label="Add ${esc(h.stat.Name)}"`)}</div>`,
+      ),
+      ...leftover.map(
+        (s) =>
+          `<div class="library-item"><button class="library-preview" data-action="preview" data-id="${esc(s.Id)}"><span class="small-glyph green">${icon("Shield", 17)}</span><span><strong>${esc(s.Name)}</strong><small>Party character</small></span></button>${btn("add", "", "Plus", "add-button", `data-id="${esc(s.Id)}" aria-label="Add ${esc(s.Name)}"`)}</div>`,
+      ),
+    ];
+    return `<div class="list-caption">Your party<span>${rows.length}</span></div>${
+      rows.length
+        ? rows.join("")
+        : `<div class="empty-library">${icon("Search", 26)}<p>No results.</p><small>Try another name or source.</small></div>`
+    }`;
+  }
+  let items: (StatBlock | Spell)[] = tab === "spells" ? allSpells() : allCreatures().filter((s) => !s.Player);
+  if (source !== "all") items = items.filter((s) => matchesSource(s.Id));
+  items = items.filter((s) => matchesQuery(s));
+  return `<div class="list-caption">${source === "personal" ? "My library" : "Available stat blocks"}<span>${items.length}</span></div>${
     items.length
       ? items
           .slice(0, 150)
@@ -518,13 +595,13 @@ function renderLibrary() {
   }${items.length > 150 ? '<p class="list-hint">Refine your search to see more results.</p>' : ""}`;
 }
 function renderCombatant(c: Combatant, active: boolean) {
-  return `<article class="combatant ${active ? "current" : ""} ${selected === c.id ? "selected" : ""} ${c.hp === 0 ? "fallen" : ""}"><div class="initiative"><input type="number" min="-99" max="999" value="${c.initiative}" data-field="initiative" data-id="${c.id}" aria-label="Initiative for ${esc(c.name)}"></div><button class="combatant-identity" data-action="select" data-id="${c.id}">${avatar(c)}<span><strong>${esc(c.name)} ${c.hidden ? icon("EyeOff", 12) : ""}</strong><small>${active ? '<span class="turn-label">Current turn</span>' : c.side === "ally" ? "Ally" : "Enemy"}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}${c.hp === 0 ? " · Down" : ""}</small></span></button><button class="hp-cell" data-action="hp" data-id="${c.id}" aria-label="Change HP for ${esc(c.name)}"><span><strong>${c.hp}</strong><small>/ ${c.maxHp}</small>${c.tempHp ? `<em>+${c.tempHp}</em>` : ""}</span><div class="hp-track"><i class="${c.hp / c.maxHp <= 0.25 ? "critical" : c.side}" style="width:${(c.hp / c.maxHp) * 100}%"></i></div></button><div class="armor">${icon("Shield", 14)}${c.ac}</div>${btn("combatant-menu", "", "MoreHorizontal", "icon-button", `data-id="${c.id}" aria-label="Options for ${esc(c.name)}"`)}</article>`;
+  return `<article class="combatant ${active ? "current" : ""} ${selected === c.id ? "selected" : ""} ${c.hp === 0 ? "fallen" : ""}"><div class="initiative"><input type="number" min="-99" max="999" value="${c.initiative}" data-field="initiative" data-id="${c.id}" aria-label="Initiative for ${esc(c.name)}"></div><button class="combatant-identity" data-action="select" data-id="${c.id}">${avatar(c)}<span><strong>${esc(c.name)} ${c.hidden ? icon("EyeOff", 12) : ""}${c.initiativeGroup ? icon("Link", 12) : ""}</strong><small>${active ? '<span class="turn-label">Current turn</span>' : c.side === "ally" ? "Ally" : "Enemy"}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}${c.hp === 0 ? " · Down" : ""}</small></span></button><button class="hp-cell" data-action="hp" data-id="${c.id}" aria-label="Change HP for ${esc(c.name)}"><span><strong>${c.hp}</strong><small>/ ${c.maxHp}</small>${c.tempHp ? `<em>+${c.tempHp}</em>` : ""}</span><div class="hp-track"><i class="${c.hp / c.maxHp <= 0.25 ? "critical" : c.side}" style="width:${(c.hp / c.maxHp) * 100}%"></i></div></button><div class="armor">${icon("Shield", 14)}${c.ac}</div>${btn("combatant-menu", "", "MoreHorizontal", "icon-button", `data-id="${c.id}" aria-label="Options for ${esc(c.name)}"`)}</article>`;
 }
 function renderDetails() {
   const c = selectedC();
   if (!c)
     return `<div class="panel-title"><div><h2>Combat sheet</h2></div>${icon("BookOpen", 20)}</div><div class="detail-empty">${icon("BookOpen", 42)}<h3>Select a combatant</h3><p>Select a combatant to view their stat block, actions, and conditions.</p></div>`;
-  return `<div class="detail-header">${btn("back-to-combat", "Combat", "ChevronLeft", "back-to-combat text-button")}<h3>Sheet</h3>${btn("edit", "", "Pencil", "icon-button", `data-id="${c.id}" aria-label="Edit combatant"`)}</div><div class="detail-identity">${avatar(c, true)}<span class="badge ${c.side}">${c.side === "ally" ? "Ally" : "Enemy"}</span><h2>${esc(c.name)}</h2><p>${esc(c.stat.Type || "Custom combatant")}</p></div><div class="stat-tiles"><div>${icon("Heart", 16)}<strong>${c.hp}<small>/${c.maxHp}</small></strong><span>HP</span></div><div>${icon("Shield", 16)}<strong>${c.ac}</strong><span>AC</span></div><div>${icon("Zap", 16)}<strong>${num(c.stat.InitiativeModifier) >= 0 ? "+" : ""}${num(c.stat.InitiativeModifier)}</strong><span>Initiative</span></div></div><div class="detail-content"><div class="section-line"><h3>Conditions</h3>${btn("conditions", "", "Plus", "tiny-button", 'aria-label="Add condition"')}</div><div class="condition-tags">${c.conditions.length ? c.conditions.map((x) => btn("remove-condition", esc(x) + " ×", undefined, "condition-chip", `data-condition="${esc(x)}"`)).join("") : '<span class="muted">No active conditions</span>'}</div><div class="reaction-row"><span>Reaction available</span><button class="toggle ${!c.reaction ? "on" : ""}" data-action="reaction" role="switch" aria-checked="${!c.reaction}" aria-label="Reaction available"><i></i></button></div>${renderStat(c.stat)}<h3>Combatant notes</h3><textarea id="combatant-notes" placeholder="Concentration, objectives, reminders…">${esc(c.notes)}</textarea></div>`;
+  return `<div class="detail-header">${btn("back-to-combat", "Combat", "ChevronLeft", "back-to-combat text-button")}<h3>Sheet</h3>${btn("edit", "", "Pencil", "icon-button", `data-id="${c.id}" aria-label="Edit combatant"`)}</div><div class="detail-identity">${avatar(c, true)}<span class="badge ${c.side}">${c.side === "ally" ? "Ally" : "Enemy"}</span><h2>${esc(c.name)}</h2><p>${esc(c.stat.Type || "Custom combatant")}</p></div><div class="stat-tiles"><div>${icon("Heart", 16)}<strong>${c.hp}<small>/${c.maxHp}</small></strong><span>HP</span></div><div>${icon("Shield", 16)}<strong>${c.ac}</strong><span>AC</span></div><div>${icon("Zap", 16)}<strong>${num(c.stat.InitiativeModifier) >= 0 ? "+" : ""}${num(c.stat.InitiativeModifier)}</strong><span>Initiative</span></div></div><div class="detail-content"><div class="section-line"><h3>Conditions</h3>${btn("conditions", "", "Plus", "tiny-button", 'aria-label="Add condition"')}</div><div class="condition-tags">${c.tags.length ? c.tags.map((t) => btn("remove-condition", `${esc(t.text)}${t.remainingRounds !== null ? ` · <small>${t.remainingRounds}</small>` : ""} ×`, undefined, "condition-chip", `data-tag="${t.id}"`)).join("") : '<span class="muted">No active conditions</span>'}</div><div class="reaction-row"><span>Reaction available</span><button class="toggle ${!c.reaction ? "on" : ""}" data-action="reaction" role="switch" aria-checked="${!c.reaction}" aria-label="Reaction available"><i></i></button></div>${renderStat(c.stat)}<h3>Combatant notes</h3><textarea id="combatant-notes" placeholder="Concentration, objectives, reminders…">${esc(c.notes)}</textarea></div>`;
 }
 function renderStat(s: StatBlock) {
   return `${s.Speed?.length ? `<p class="speed"><strong>Speed</strong> ${esc(s.Speed.join(", "))}</p>` : ""}${
@@ -559,6 +636,18 @@ function hpModal(c: Combatant) {
   openModal(
     "Hit Points",
     `<div class="hp-modal-identity">${avatar(c)}<div><strong>${esc(c.name)}</strong><p>${c.hp} / ${c.maxHp} HP${c.tempHp ? " · " + c.tempHp + " temporary" : ""}</p></div></div><form id="hp-form"><label>Amount<input name="amount" type="number" min="0" max="999999" value="1" required autofocus></label><div class="modal-actions three"><button name="mode" value="damage" class="danger" type="submit">${icon("Swords")}Apply damage</button><button name="mode" value="heal" class="primary" type="submit">${icon("Heart")}Heal</button><button name="mode" value="temp" class="secondary" type="submit">+ Temporary</button></div></form>`,
+  );
+}
+function concentrationModal(c: Combatant, taken: number) {
+  const dc = concentrationDC(taken);
+  openModal(
+    `${esc(c.name)} is concentrating`,
+    `<p>DC ${dc} Constitution saving throw (took ${taken} damage).</p>
+     <div class="modal-actions">
+       ${btn("concentration-keep", "Pass", undefined, "secondary", `data-id="${c.id}"`)}
+       ${btn("concentration-roll", "Roll", "Dices", "secondary", `data-id="${c.id}" data-dc="${dc}"`)}
+       ${btn("concentration-fail", "Fail", undefined, "primary", `data-id="${c.id}"`)}
+     </div>`,
   );
 }
 function featureFields(key: string, features: any[] = []) {
@@ -611,16 +700,38 @@ function addStat(s: StatBlock) {
   }, `${s.Name} joined the encounter.`);
   toast(`${s.Name} added.`);
 }
+function addPersistentHero(hero: PersistentCharacter) {
+  if (state.encounter.combatants.some((c) => c.persistentId === hero.id)) {
+    toast("Already in the encounter.");
+    return;
+  }
+  change(() => {
+    selected = addHeroToEncounter(state.encounter, hero).id;
+  }, `${hero.stat.Name} joined the encounter.`);
+  toast(`${hero.stat.Name} added.`);
+}
+function seedMissingHeroes(characters = state.characters, stats = state.library) {
+  for (const s of stats) {
+    if (!s.Player || s.ImportedCurrentHP === undefined) continue;
+    if (characters.some((h) => h.id === s.Id || h.stat.Id === s.Id)) continue;
+    upsertHeroFromStat(characters, s, num(s.ImportedCurrentHP), String(s.ImportedNotes || ""));
+  }
+}
 function settings() {
   openModal(
     "Data and backups",
-    `<div class="settings-section"><h3>${icon("Database")} Local storage</h3><p>Encounters, stat blocks, spells, and notes are saved in this browser. Export backups to move your campaign to another device.</p><div class="settings-metrics"><div><b>${state.library.length}</b><span>personal stat blocks</span></div><div><b>${base.length}</b><span>SRD creatures</span></div><div><b>${allSpells().length}</b><span>spells</span></div></div><div class="settings-actions">${btn("export", "Export backup", "Download", "primary")}${btn("import", "Import JSON", "Upload", "secondary")}</div><input type="file" id="import-file" accept=".json,application/json" hidden><p class="small muted">Accepts RoundKeep backups and Improved Initiative exports. Import is validated before changing your data.</p></div><div class="settings-section"><h3>Source backup</h3><p>${state.sourceBackup ? "The full Improved Initiative backup was preserved, including settings and source fields." : "No Improved Initiative backup imported."}</p>${state.sourceBackup ? btn("export-original", "Download original backup", "Download", "secondary") : ""}</div><div class="settings-section"><h3>Content and credits</h3><p>Custom interface and combat engine. SRD 5.2 (2024) creatures via Open5e, under CC BY 4.0. Basic rules spells distributed by Evan Bailey's Improved Initiative project. Rule text kept in the source language.</p><a href="/credits.html" target="_blank" rel="noopener">Credits and licenses</a><br><a href="/SRD-OGL_V1.1.pdf" target="_blank" rel="noopener">Open Gaming License / SRD ${icon("ArrowUpRight", 14)}</a></div>`,
+    `<div class="settings-section"><h3>${icon("Database")} Local storage</h3><p>Encounters, stat blocks, spells, and notes are saved in this browser. Export backups to move your campaign to another device.</p><div class="settings-metrics"><div><b>${state.library.length}</b><span>personal stat blocks</span></div><div><b>${base.length}</b><span>SRD creatures</span></div><div><b>${allSpells().length}</b><span>spells</span></div></div><div class="settings-actions">${btn("export", "Export backup", "Download", "primary")}${btn("import", "Import JSON", "Upload", "secondary")}</div><input type="file" id="import-file" accept=".json,application/json" hidden><p class="small muted">Accepts RoundKeep backups and Improved Initiative exports. Import is validated before changing your data.</p></div><div class="settings-section"><h3>Encounter budget</h3><p>Party size and level set the XP thresholds for Easy through Deadly.</p><form id="party-form"><div class="form-grid"><label>Party size<input name="party-size" type="number" min="1" max="12" value="${state.party.size}" required></label><label>Party level<input name="party-level" type="number" min="1" max="20" value="${state.party.level}" required></label></div><div class="modal-actions"><button class="primary" type="submit">Save budget</button></div></form></div><div class="settings-section"><h3>Source backup</h3><p>${state.sourceBackup ? "The full Improved Initiative backup was preserved, including settings and source fields." : "No Improved Initiative backup imported."}</p>${state.sourceBackup ? btn("export-original", "Download original backup", "Download", "secondary") : ""}</div><div class="settings-section"><h3>Content and credits</h3><p>Custom interface and combat engine. SRD 5.2 (2024) creatures via Open5e, under CC BY 4.0. Basic rules spells distributed by Evan Bailey's Improved Initiative project. Rule text kept in the source language.</p><a href="/credits.html" target="_blank" rel="noopener">Credits and licenses</a><br><a href="/SRD-OGL_V1.1.pdf" target="_blank" rel="noopener">Open Gaming License / SRD ${icon("ArrowUpRight", 14)}</a></div>`,
   );
   const appearance = `<div class="settings-section theme-section"><h3>${icon("Settings2")} Appearance</h3><p>Choose light, dark, or follow your operating system theme automatically.</p><label class="theme-control">Interface theme<select id="theme-preference" aria-label="Interface theme"><option value="system" ${themePreference === "system" ? "selected" : ""}>Use system theme</option><option value="light" ${themePreference === "light" ? "selected" : ""}>Light</option><option value="dark" ${themePreference === "dark" ? "selected" : ""}>Dark</option></select></label></div>`;
   const firstSection = modal.querySelector(".settings-section");
   if (firstSection) firstSection.insertAdjacentHTML("beforebegin", appearance);
   else modal.insertAdjacentHTML("beforeend", appearance);
+  const playerShare = `<div class="settings-section"><h3>${icon("Eye")} Player view</h3><p>Share <code>/p/</code> plus the room id on this network. Same-browser <code>?player</code> still works.</p><div id="player-share-urls" class="player-share-list"></div></div>`;
+  const themeSection = modal.querySelector(".theme-section");
+  if (themeSection) themeSection.insertAdjacentHTML("afterend", playerShare);
+  else modal.insertAdjacentHTML("beforeend", playerShare);
   enhanceSelects(modal);
+  void fillPlayerShare();
 }
 function download(data: unknown, name: string) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
@@ -682,19 +793,31 @@ async function action(kind: string, el: HTMLElement) {
         });
       break;
     case "add": {
+      if (el.dataset.hero) {
+        const hero = state.characters.find((h) => h.id === el.dataset.hero);
+        if (hero) addPersistentHero(hero);
+        break;
+      }
       const s = allCreatures().find((s) => s.Id === el.dataset.id);
       if (s) addStat(s);
       break;
     }
     case "preview": {
+      if (el.dataset.hero) {
+        const hero = state.characters.find((h) => h.id === el.dataset.hero);
+        if (hero) previewModal(hero.stat);
+        break;
+      }
       const s = (tab === "spells" ? allSpells() : allCreatures()).find((s) => s.Id === el.dataset.id);
       if (s) previewModal(s);
       break;
     }
     case "add-preview":
-      if (preview) {
+      if (preview && !("Level" in preview)) {
         closeModal();
-        addStat(preview as StatBlock);
+        const hero = state.characters.find((h) => h.id === preview!.Id || h.stat.Id === preview!.Id);
+        if (hero) addPersistentHero(hero);
+        else addStat(preview as StatBlock);
       }
       break;
     case "edit-library":
@@ -726,14 +849,14 @@ async function action(kind: string, el: HTMLElement) {
       break;
     case "roll-initiative":
       change(() => {
-        for (const c of e.combatants) c.initiative = roll("1d20").total + num(c.stat.InitiativeModifier);
+        rollEncounterInitiative(e);
       }, "Initiative rolled.");
       toast("Initiative rolled.");
       break;
     case "undo": {
       const previous = history.pop();
       if (previous) {
-        state.encounter = previous;
+        restoreTable(state, previous);
         persist();
         render();
         toast("Last action undone.");
@@ -747,23 +870,53 @@ async function action(kind: string, el: HTMLElement) {
       if (c) change(() => (c.reaction = !c.reaction));
       break;
     case "remove-condition":
-      if (c) change(() => (c.conditions = c.conditions.filter((x) => x !== el.dataset.condition)));
+      if (c)
+        change(() => {
+          c.tags = c.tags.filter((t) => t.id !== el.dataset.tag);
+          syncConditions(c);
+        });
       break;
     case "conditions":
       if (c)
         openModal(
           "Conditions",
-          `<div class="condition-picker">${["Frightened", "Grappled", "Stunned", "Prone", "Blinded", "Charmed", "Poisoned", "Restrained", "Incapacitated", "Unconscious", "Invisible", "Paralyzed", "Petrified", "Deafened", "Concentration", "Exhaustion"].map((x) => btn("toggle-condition", esc(x), c.conditions.includes(x) ? "Check" : "Plus", c.conditions.includes(x) ? "selected" : "", `data-condition="${x}" aria-pressed="${c.conditions.includes(x)}"`)).join("")}</div><form id="condition-form"><label>Custom condition<input name="condition" maxlength="60" placeholder="e.g. Hunter's mark" required></label><button class="primary">Add</button></form>`,
+          `<div class="condition-picker">${["Frightened", "Grappled", "Stunned", "Prone", "Blinded", "Charmed", "Poisoned", "Restrained", "Incapacitated", "Unconscious", "Invisible", "Paralyzed", "Petrified", "Deafened", "Concentration", "Exhaustion"].map((x) => btn("toggle-condition", esc(x), c.conditions.includes(x) ? "Check" : "Plus", c.conditions.includes(x) ? "selected" : "", `data-condition="${x}" aria-pressed="${c.conditions.includes(x)}"`)).join("")}</div><form id="condition-form"><div class="form-grid"><label class="full">Custom condition<input name="condition" maxlength="60" placeholder="e.g. Hunter's mark" required></label><label>Duration in rounds<input name="rounds" type="number" min="1" max="99" placeholder="Until removed"></label><label>Ticks<select name="timing"><option value="end">End of turn</option><option value="start">Start of turn</option></select></label><label class="full">Whose turn<select name="until">${e.combatants.map((x) => `<option value="${x.id}" ${x.id === c.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label><label class="check full"><input type="checkbox" name="hidden"> Hidden from players</label><label class="check full"><input type="checkbox" name="concentration"> Concentration</label></div><button class="primary">Add</button></form>`,
         );
       break;
     case "toggle-condition":
       if (c) {
         change(() => {
           const x = el.dataset.condition!;
-          c.conditions = c.conditions.includes(x) ? c.conditions.filter((t) => t !== x) : [...c.conditions, x];
+          if (c.tags.some((t) => t.text === x)) {
+            c.tags = c.tags.filter((t) => t.text !== x);
+            syncConditions(c);
+          } else addTag(c, { text: x, concentration: x === "Concentration" });
         });
         el.classList.toggle("selected", c.conditions.includes(el.dataset.condition!));
         el.setAttribute("aria-pressed", String(c.conditions.includes(el.dataset.condition!)));
+      }
+      break;
+    case "concentration-keep":
+      closeModal();
+      break;
+    case "concentration-fail":
+      if (c) {
+        closeModal();
+        change(() => endConcentration(c), `${c.name} lost concentration.`);
+      }
+      break;
+    case "concentration-roll":
+      if (c) {
+        const dc = num(el.dataset.dc, concentrationDC(0));
+        const total = roll("1d20").total + constitutionMod(c);
+        if (total >= dc) {
+          toast(`${c.name} kept concentration (${total} vs DC ${dc}).`);
+          closeModal();
+        } else {
+          closeModal();
+          change(() => endConcentration(c), `${c.name} lost concentration.`);
+          toast(`${c.name} lost concentration (${total} vs DC ${dc}).`);
+        }
       }
       break;
     case "add-feature":
@@ -794,7 +947,7 @@ async function action(kind: string, el: HTMLElement) {
         selected = c.id;
         openModal(
           esc(c.name),
-          `<div class="menu-actions">${btn("edit", "Edit combatant", "Pencil", "secondary")}${btn("hp", "Damage, healing, and temp HP", "Heart", "secondary")}${btn("conditions", "Manage conditions", "Sparkles", "secondary")}${btn("duplicate", "Duplicate combatant", "Copy", "secondary")}${btn("hide", c.hidden ? "Show to players" : "Hide from players", c.hidden ? "Eye" : "EyeOff", "secondary")}${btn("remove", "Remove from encounter", "Trash2", "danger")}</div>`,
+          `<div class="menu-actions">${btn("edit", "Edit combatant", "Pencil", "secondary")}${btn("hp", "Damage, healing, and temp HP", "Heart", "secondary")}${btn("conditions", "Manage conditions", "Sparkles", "secondary")}${btn("duplicate", "Duplicate combatant", "Copy", "secondary")}${btn("move-up", "Move up", "ArrowUp", "secondary")}${btn("move-down", "Move down", "ArrowDown", "secondary")}${btn("link-next", "Link with next", "Link", "secondary")}${c.initiativeGroup ? btn("unlink-initiative", "Unlink initiative", "Link", "secondary") : ""}${btn("reveal-ac", c.revealedAC ? "Hide AC from players" : "Reveal AC to players", c.revealedAC ? "EyeOff" : "Eye", "secondary")}${c.side === "ally" ? btn("save-hero", "Save as hero", "Users", "secondary") : ""}${btn("hide", c.hidden ? "Show to players" : "Hide from players", c.hidden ? "Eye" : "EyeOff", "secondary")}${btn("remove", "Remove from encounter", "Trash2", "danger")}</div>`,
         );
       }
       break;
@@ -805,6 +958,7 @@ async function action(kind: string, el: HTMLElement) {
           const copy = structuredClone(c);
           copy.id = id();
           copy.name += " (2)";
+          copy.persistentId = null;
           e.combatants.push(copy);
           selected = copy.id;
         }, `${c.name} duplicated.`);
@@ -825,18 +979,77 @@ async function action(kind: string, el: HTMLElement) {
         }, `${c.name} removed from encounter.`);
       }
       break;
+    case "move-up":
+      if (c) {
+        closeModal();
+        change(() => moveCombatant(e, c.id, -1));
+      }
+      break;
+    case "move-down":
+      if (c) {
+        closeModal();
+        change(() => moveCombatant(e, c.id, 1));
+      }
+      break;
+    case "link-next":
+      if (c) {
+        const list = ordered(e);
+        const next = list[list.findIndex((x) => x.id === c.id) + 1];
+        closeModal();
+        if (next) change(() => linkInitiative(e, [c.id, next.id]));
+      }
+      break;
+    case "unlink-initiative":
+      if (c) {
+        closeModal();
+        change(() => unlinkInitiative(c));
+      }
+      break;
+    case "reveal-ac":
+      if (c) {
+        closeModal();
+        change(() => {
+          c.revealedAC = !c.revealedAC;
+        });
+      }
+      break;
+    case "save-hero":
+      if (c && c.side === "ally") {
+        closeModal();
+        change(() => {
+          c.persistentId = upsertHeroFromStat(state.characters, c.stat, c.hp, c.notes).id;
+        }, `${c.name} saved as a hero.`);
+      }
+      break;
+    case "clean-encounter":
+      openModal(
+        "Clean encounter?",
+        `<p>Defeated enemies will be removed. Allies are restored to full hit points.</p><div class="modal-actions">${btn("close", "Cancel", undefined, "secondary")}${btn("confirm-clean-encounter", "Clean encounter", "Sparkles", "primary")}</div>`,
+      );
+      break;
+    case "confirm-clean-encounter":
+      closeModal();
+      change(() => cleanEncounter(e, state.characters), "Encounter cleaned.");
+      break;
     case "add-party": {
-      const party = state.library.filter((s) => s.Player && !e.combatants.some((c) => c.stat.Id === s.Id));
-      if (!party.length) {
+      const heroes = state.characters.filter((h) => !e.combatants.some((c) => c.persistentId === h.id));
+      const leftover = state.library.filter(
+        (s) =>
+          s.Player &&
+          !state.characters.some((h) => h.stat.Id === s.Id) &&
+          !e.combatants.some((c) => c.stat.Id === s.Id),
+      );
+      if (!heroes.length && !leftover.length) {
         toast("No new heroes to add. Create an ally stat block.");
         break;
       }
       change(() => {
-        for (const s of party) {
-          const c = createCombatant(s, "ally");
-          if (s.ImportedCurrentHP !== undefined) c.hp = clamp(num(s.ImportedCurrentHP), 0, c.maxHp);
-          c.notes = String(s.ImportedNotes || "");
-          e.combatants.push(c);
+        for (const hero of heroes) addHeroToEncounter(e, hero);
+        for (const s of leftover) {
+          const added = createCombatant(s, "ally");
+          if (s.ImportedCurrentHP !== undefined) added.hp = clamp(num(s.ImportedCurrentHP), 0, added.maxHp);
+          added.notes = String(s.ImportedNotes || "");
+          e.combatants.push(added);
         }
         selected = e.combatants[0].id;
       }, "Party added to encounter.");
@@ -941,12 +1154,24 @@ async function action(kind: string, el: HTMLElement) {
     case "help":
       openModal(
         "Your table, simplified",
-        `<div class="help-list"><p><kbd>⌘ K</kbd> Search and quick actions</p><p><kbd>N</kbd> Advance turn</p><p><kbd>/</kbd> Search library</p><p><kbd>D</kbd> Open dice roller</p><p><kbd>Ctrl / ⌘ + Z</kbd> Undo a combat action</p><p>Click initiative to edit it. Click HP to apply damage or healing. Player view hides notes, AC, and exact HP.</p><p>The player window syncs in this same browser and device. It is not a remote session link.</p></div>`,
+        `<div class="help-list"><p><kbd>⌘ K</kbd> Search and quick actions</p><p><kbd>N</kbd> Advance turn</p><p><kbd>/</kbd> Search library</p><p><kbd>D</kbd> Open dice roller</p><p><kbd>Ctrl / ⌘ + Z</kbd> Undo a combat action</p><p>Click initiative to edit it. Click HP to apply damage or healing. Player view hides notes, AC, and exact HP.</p><p>The player window syncs in this same browser and device. Share /p/ plus the room id on this network. Same-browser ?player still works.</p></div>`,
       );
       break;
     case "player":
-      window.open("/?player", "roundkeep-player-view");
+      window.open("/p/" + state.encounter.id, "roundkeep-player-view");
+      showPlayerShare(
+        "Player view",
+        "Share <code>/p/</code> plus the room id on this network. Same-browser <code>?player</code> still works.",
+      );
       break;
+    case "copy-player-url": {
+      const url = el.dataset.url || fallbackPlayerUrl(state.encounter.id);
+      void navigator.clipboard.writeText(url).then(
+        () => toast("Copied player view URL."),
+        () => toast("Could not copy. Select the URL instead."),
+      );
+      break;
+    }
     case "log":
       openModal(
         "Encounter history",
@@ -1034,8 +1259,15 @@ document.addEventListener("change", async (event) => {
     if (el.id === "combatant-notes") {
       const c = selectedC();
       if (c) {
-        c.notes = el.value;
-        persist();
+        if (c.persistentId) {
+          change(() => {
+            c.notes = el.value;
+            syncPersistentHp(state.characters, c);
+          });
+        } else {
+          c.notes = el.value;
+          persist();
+        }
       }
     }
     if (el.id === "import-file" && el.files?.[0]) {
@@ -1060,6 +1292,10 @@ document.addEventListener("change", async (event) => {
           pendingImport.saved.push(structuredClone(state.encounter));
           pendingImport.encounter = imported.encounter;
         }
+        const heroes = new Map(pendingImport.characters.map((h) => [h.id, h]));
+        for (const h of imported.characters || []) heroes.set(h.id, h);
+        pendingImport.characters = [...heroes.values()];
+        seedMissingHeroes(pendingImport.characters, imported.library);
         pendingImport.sourceBackup = raw;
         pendingImport.importRevision = 1;
         validateState(pendingImport);
@@ -1111,10 +1347,15 @@ document.addEventListener("submit", (event) => {
         if (!mode) break;
         const amount = num(value("amount"));
         closeModal();
+        let taken = 0;
         change(
-          () => applyHP(c, amount, mode),
+          () => {
+            taken = applyHP(c, amount, mode).taken;
+            if (c.persistentId) syncPersistentHp(state.characters, c);
+          },
           `${c.name}: ${amount} ${mode === "damage" ? "damage" : mode === "heal" ? "healing" : "temporary HP"}.`,
         );
+        if (mode === "damage" && taken > 0 && isConcentrating(c)) concentrationModal(c, taken);
         break;
       }
       case "creature-form": {
@@ -1157,6 +1398,7 @@ document.addEventListener("submit", (event) => {
             c.ac = stat.AC!.Value;
             c.side = value("side") as "ally" | "enemy";
             c.initiative = num(value("initiative"));
+            if (c.persistentId) syncPersistentHp(state.characters, c);
           } else {
             const idx = state.library.findIndex((s) => s.Id === stat.Id);
             if (idx >= 0) state.library[idx] = stat;
@@ -1200,10 +1442,40 @@ document.addEventListener("submit", (event) => {
       case "condition-form": {
         const c = selectedC(),
           condition = value("condition").trim();
-        if (c && condition && !c.conditions.includes(condition)) {
-          change(() => c.conditions.push(condition));
+        if (c && condition) {
+          const rounds = value("rounds").trim();
+          const n = Math.floor(num(rounds));
+          change(() => {
+            addTag(c, {
+              text: condition,
+              remainingRounds: rounds === "" || n < 1 ? null : Math.min(99, n),
+              timing: value("timing") === "start" ? "start" : "end",
+              untilCombatantId: state.encounter.combatants.some((x) => x.id === value("until"))
+                ? value("until")
+                : c.id,
+              hidden: fd.get("hidden") === "on",
+              concentration: fd.get("concentration") === "on",
+            });
+          });
           closeModal();
         }
+        break;
+      }
+      case "quick-add-form": {
+        const added = quickAddCombatant(value("name"), num(value("hp")));
+        change(() => {
+          state.encounter.combatants.push(added);
+          selected = added.id;
+        }, `${added.name} joined the encounter.`);
+        toast(`${added.name} added.`);
+        break;
+      }
+      case "party-form": {
+        state.party.size = clamp(num(value("party-size")), 1, 12);
+        state.party.level = clamp(num(value("party-level")), 1, 20);
+        persist();
+        render();
+        toast("Encounter budget saved.");
         break;
       }
       case "dice-form": {
@@ -1277,10 +1549,26 @@ command.addEventListener("mousemove", (event) => {
 window.addEventListener("online", () => render());
 window.addEventListener("offline", () => render());
 function renderPlayer(p: any) {
-  app.innerHTML = `<main class="player-screen"><div class="wordmark">ROUND<span class="wordmark-dot">·</span>KEEP<span class="wordmark-sub">Player view</span></div><p class="muted">${p.round ? "Round " + p.round : "Preparation"}</p><h1>${esc(p.name)}</h1><div class="player-list">${p.combatants.map((c: any) => `<article class="player-card ${c.id === p.activeId ? "current" : ""}"><span class="player-initiative">${num(c.initiative)}</span><div><h2>${esc(c.name)}</h2><p>${esc(c.health)}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}</p></div>${c.id === p.activeId ? '<span class="turn-label">Current turn</span>' : ""}</article>`).join("") || "<p>Waiting for combatants…</p>"}</div><p class="muted">Local sync · keep the DM table open in this browser.</p></main>`;
+  app.innerHTML = `<main class="player-screen"><div class="wordmark">ROUND<span class="wordmark-dot">·</span>KEEP<span class="wordmark-sub">Player view</span></div><p class="muted">${p.round ? "Round " + p.round : "Preparation"}</p><h1>${esc(p.name)}</h1><div class="player-list">${p.combatants.map((c: any) => `<article class="player-card ${c.id === p.activeId ? "current" : ""}"><span class="player-initiative">${num(c.initiative)}</span><div><h2>${esc(c.name)}</h2><p>${esc(c.health)}${typeof c.ac === "number" ? " · AC " + c.ac : ""}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}</p></div>${c.id === p.activeId ? '<span class="turn-label">Current turn</span>' : ""}</article>`).join("") || "<p>Waiting for combatants…</p>"}</div><p class="muted">Room ${esc(playerRoom || "local")}</p></main>`;
 }
 async function init() {
   document.documentElement.classList.add("is-loading");
+  if (playerRoom) {
+    app.innerHTML =
+      '<div class="boot">ROUND<span class="wordmark-dot">·</span>KEEP<br><small>Waiting for the DM table…</small></div>';
+    tableSocket = io();
+    tableSocket.on("connect", () => {
+      tableSocket!.emit("join encounter", playerRoom);
+      tableSocket!.emit("request encounter", playerRoom);
+    });
+    tableSocket.on("encounter updated", (projection) => renderPlayer(projection));
+    tableSocket.on("connect_error", () => {
+      const note = app.querySelector(".boot small");
+      if (note) note.textContent = "Cannot reach the table. Is RoundKeep running on this network?";
+    });
+    document.documentElement.classList.remove("is-loading");
+    return;
+  }
   if (playerMode) {
     app.innerHTML =
       '<div class="boot">ROUND<span class="wordmark-dot">·</span>KEEP<br><small>Waiting for the DM table…</small></div>';
@@ -1288,6 +1576,7 @@ async function init() {
       if (event.data.type === "state") renderPlayer(event.data.data);
     };
     channel.postMessage({ type: "request" });
+    document.documentElement.classList.remove("is-loading");
     return;
   }
   channel.onmessage = (event) => {
@@ -1318,6 +1607,8 @@ async function init() {
       library: [],
       spells: [],
       saved: [],
+      characters: [],
+      party: { size: 4, level: 3 },
       updatedAt: new Date().toISOString(),
     };
     try {
@@ -1331,6 +1622,8 @@ async function init() {
         state.saved = imported.saved;
         if (Object.keys(raw).length) state.sourceBackup = raw;
         if (imported.encounter) state.encounter = imported.encounter;
+        state.characters = imported.characters || [];
+        seedMissingHeroes();
         state.encounter.name = "New encounter";
       }
     } catch {}
@@ -1346,11 +1639,17 @@ async function init() {
   const result = await Promise.allSettled([catalogue<StatBlock>("creatures"), catalogue<Spell>("spells")]);
   if (result[0].status === "fulfilled") base = result[0].value;
   if (result[1].status === "fulfilled") baseSpells = result[1].value;
+  seedMissingHeroes();
   selected = state.encounter.activeId || ordered(state.encounter)[0]?.id || "";
   ready = true;
   document.documentElement.classList.remove("is-loading");
   render();
   persist();
+  tableSocket = io();
+  tableSocket.on("connect", () => {
+    tableSocket!.emit("join encounter", { roomId: state.encounter.id, role: "table" });
+    tableSocket!.emit("update encounter", state.encounter.id, projectEncounter(state.encounter));
+  });
   if (result.some((r) => r.status === "rejected"))
     toast("Part of the catalogue failed to load. Your personal stat blocks remain available.");
   if (import.meta.env.PROD && "serviceWorker" in navigator)

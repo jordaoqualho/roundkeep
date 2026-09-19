@@ -36,6 +36,26 @@ export interface Spell {
   Source?: string;
   [key: string]: unknown;
 }
+export interface Tag {
+  id: string;
+  text: string;
+  remainingRounds: number | null;
+  timing: "start" | "end";
+  untilCombatantId: string;
+  hidden: boolean;
+  concentration: boolean;
+}
+export interface PersistentCharacter {
+  id: string;
+  stat: StatBlock;
+  currentHp: number;
+  maxHp: number;
+  notes: string;
+}
+export interface PartyBudget {
+  size: number;
+  level: number;
+}
 export interface Combatant {
   id: string;
   stat: StatBlock;
@@ -47,6 +67,11 @@ export interface Combatant {
   initiative: number;
   side: "ally" | "enemy";
   conditions: string[];
+  tags: Tag[];
+  sortIndex: number;
+  initiativeGroup: string | null;
+  persistentId: string | null;
+  revealedAC: boolean;
   notes: string;
   hidden: boolean;
   reaction: boolean;
@@ -67,6 +92,8 @@ export interface State {
   library: StatBlock[];
   spells: Spell[];
   saved: Encounter[];
+  characters: PersistentCharacter[];
+  party: PartyBudget;
   sourceBackup?: unknown;
   importRevision?: number;
   updatedAt: string;
@@ -104,37 +131,251 @@ export function createCombatant(
     initiative: num(stat.InitiativeModifier),
     side,
     conditions: [],
+    tags: [],
+    sortIndex: 0,
+    initiativeGroup: null,
+    persistentId: null,
+    revealedAC: false,
     notes: "",
     hidden: false,
     reaction: false,
   };
 }
+export function syncConditions(c: Combatant) {
+  c.conditions = c.tags.map((t) => t.text);
+}
+export function addTag(
+  c: Combatant,
+  input: Partial<Tag> & { text: string },
+): Tag {
+  const tag: Tag = {
+    id: input.id || id(),
+    text: input.text,
+    remainingRounds:
+      input.remainingRounds === undefined ? null : input.remainingRounds,
+    timing: input.timing || "end",
+    untilCombatantId: input.untilCombatantId || c.id,
+    hidden: !!input.hidden,
+    concentration: !!input.concentration,
+  };
+  c.tags.push(tag);
+  syncConditions(c);
+  return tag;
+}
+export function tickTags(
+  e: Encounter,
+  phase: "start" | "end",
+  combatantId: string,
+) {
+  for (const c of e.combatants) {
+    c.tags = c.tags.filter((t) => {
+      if (t.untilCombatantId !== combatantId || t.timing !== phase)
+        return true;
+      if (t.remainingRounds === null) return true;
+      t.remainingRounds -= 1;
+      return t.remainingRounds > 0;
+    });
+    syncConditions(c);
+  }
+}
+export function upsertHeroFromStat(
+  characters: PersistentCharacter[],
+  stat: StatBlock,
+  currentHp?: number,
+  notes = "",
+): PersistentCharacter {
+  const maxHp = Math.max(1, num(stat.HP?.Value, 1));
+  const existing = characters.find(
+    (h) => h.id === stat.Id || h.stat.Id === stat.Id,
+  );
+  const record: PersistentCharacter = existing || {
+    id: stat.Id || id(),
+    stat: { ...structuredClone(stat), Player: "player" },
+    currentHp: maxHp,
+    maxHp,
+    notes,
+  };
+  record.stat = { ...structuredClone(stat), Player: "player" };
+  record.maxHp = maxHp;
+  record.currentHp = clamp(
+    currentHp === undefined ? record.currentHp : num(currentHp),
+    0,
+    maxHp,
+  );
+  record.notes = notes || record.notes;
+  if (!existing) characters.push(record);
+  return record;
+}
+export function addHeroToEncounter(
+  e: Encounter,
+  hero: PersistentCharacter,
+): Combatant {
+  const c = createCombatant(hero.stat, "ally");
+  c.persistentId = hero.id;
+  c.hp = clamp(hero.currentHp, 0, c.maxHp);
+  c.notes = hero.notes;
+  e.combatants.push(c);
+  return c;
+}
+export type TableSnapshot = {
+  encounter: Encounter;
+  characters: PersistentCharacter[];
+};
+export function snapshotTable(table: {
+  encounter: Encounter;
+  characters: PersistentCharacter[];
+}): TableSnapshot {
+  return structuredClone(table);
+}
+export function restoreTable(
+  table: { encounter: Encounter; characters: PersistentCharacter[] },
+  snap: TableSnapshot,
+) {
+  table.encounter = structuredClone(snap.encounter);
+  table.characters = structuredClone(snap.characters);
+}
+export function syncPersistentHp(
+  characters: PersistentCharacter[],
+  c: Combatant,
+) {
+  const hero = characters.find((h) => h.id === c.persistentId);
+  if (!hero) return;
+  hero.currentHp = c.hp;
+  hero.maxHp = c.maxHp;
+  hero.notes = c.notes;
+}
 export function applyHP(
   c: Combatant,
   amount: number,
   mode: "damage" | "heal" | "temp",
-) {
+): { taken: number } {
   if (!Number.isFinite(amount) || amount < 0)
     throw new Error("Enter a positive value.");
   amount = Math.floor(amount);
   if (mode === "temp") {
     c.tempHp = Math.max(c.tempHp, amount);
-    return;
+    return { taken: 0 };
   }
   if (mode === "heal") {
     c.hp = clamp(c.hp + amount, 0, c.maxHp);
-    return;
+    return { taken: 0 };
   }
   const absorbed = Math.min(c.tempHp, amount);
   c.tempHp -= absorbed;
   c.hp = Math.max(0, c.hp - (amount - absorbed));
+  return { taken: amount };
+}
+export function concentrationDC(damage: number) {
+  return Math.max(10, Math.floor(damage / 2));
+}
+export function isConcentrating(c: Combatant) {
+  return c.tags.some((t) => t.concentration);
+}
+export function endConcentration(c: Combatant) {
+  c.tags = c.tags.filter((t) => !t.concentration);
+  syncConditions(c);
+}
+export function constitutionMod(c: Combatant) {
+  return Math.floor((num(c.stat.Abilities?.Con, 10) - 10) / 2);
 }
 export function ordered(e: Encounter) {
   return [...e.combatants].sort(
     (a, b) =>
+      a.sortIndex - b.sortIndex ||
       b.initiative - a.initiative ||
-      num(b.stat.InitiativeModifier) - num(a.stat.InitiativeModifier),
+      num(b.stat.InitiativeModifier) - num(a.stat.InitiativeModifier) ||
+      a.id.localeCompare(b.id),
   );
+}
+export function reindexSort(e: Encounter) {
+  ordered(e).forEach((c, i) => (c.sortIndex = i));
+}
+export function linkInitiative(e: Encounter, ids: string[]) {
+  const members = e.combatants.filter((c) => ids.includes(c.id));
+  if (members.length < 2) return;
+  const group =
+    members.find((c) => c.initiativeGroup)?.initiativeGroup || id();
+  const initiative = members[0].initiative;
+  for (const c of members) {
+    c.initiativeGroup = group;
+    c.initiative = initiative;
+  }
+}
+export function unlinkInitiative(c: Combatant) {
+  c.initiativeGroup = null;
+}
+export function rollCombatantInitiative(
+  e: Encounter,
+  c: Combatant,
+  random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32,
+) {
+  const total = roll("1d20", random).total + num(c.stat.InitiativeModifier);
+  const group = c.initiativeGroup;
+  for (const other of e.combatants) {
+    if (other.id === c.id || (group && other.initiativeGroup === group))
+      other.initiative = total;
+  }
+  return total;
+}
+export function rollEncounterInitiative(
+  e: Encounter,
+  random = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32,
+) {
+  const seen = new Set<string>();
+  for (const c of e.combatants) {
+    const key = c.initiativeGroup || c.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rollCombatantInitiative(e, c, random);
+  }
+  const ranked = [...e.combatants].sort(
+    (a, b) =>
+      b.initiative - a.initiative ||
+      num(b.stat.InitiativeModifier) - num(a.stat.InitiativeModifier) ||
+      a.id.localeCompare(b.id),
+  );
+  ranked.forEach((c, i) => (c.sortIndex = i));
+}
+function groupBlock(list: Combatant[], index: number) {
+  const group = list[index].initiativeGroup;
+  if (!group) return { start: index, end: index };
+  let start = index;
+  let end = index;
+  while (start > 0 && list[start - 1].initiativeGroup === group) start--;
+  while (end < list.length - 1 && list[end + 1].initiativeGroup === group)
+    end++;
+  return { start, end };
+}
+export function moveCombatant(
+  e: Encounter,
+  combatantId: string,
+  direction: -1 | 1,
+) {
+  if (e.combatants.every((c) => c.sortIndex === 0)) reindexSort(e);
+  const list = ordered(e);
+  const index = list.findIndex((c) => c.id === combatantId);
+  if (index < 0) return;
+  const block = groupBlock(list, index);
+  const swapWith = direction < 0 ? block.start - 1 : block.end + 1;
+  if (swapWith < 0 || swapWith >= list.length) return;
+  const other = groupBlock(list, swapWith);
+  const moving = list.slice(block.start, block.end + 1);
+  const neighbor = list.slice(other.start, other.end + 1);
+  const next =
+    direction < 0
+      ? [
+          ...list.slice(0, other.start),
+          ...moving,
+          ...neighbor,
+          ...list.slice(block.end + 1),
+        ]
+      : [
+          ...list.slice(0, block.start),
+          ...neighbor,
+          ...moving,
+          ...list.slice(other.end + 1),
+        ];
+  next.forEach((c, i) => (c.sortIndex = i));
 }
 export function advance(e: Encounter, direction = 1) {
   const list = ordered(e);
@@ -144,6 +385,9 @@ export function advance(e: Encounter, direction = 1) {
     e.round = 1;
     e.activeId = list[0].id;
     return;
+  }
+  if (direction > 0 && e.activeId) {
+    tickTags(e, "end", e.activeId);
   }
   const pos = list.findIndex((c) => c.id === e.activeId);
   let next = pos + direction;
@@ -160,7 +404,44 @@ export function advance(e: Encounter, direction = 1) {
     }
   }
   e.activeId = list[next].id;
-  if (direction > 0) list[next].reaction = false;
+  if (direction > 0) {
+    list[next].reaction = false;
+    tickTags(e, "start", e.activeId);
+  }
+}
+export function quickAddCombatant(name: string, hp: number): Combatant {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Enter a name.");
+  if (!Number.isFinite(hp) || hp < 1)
+    throw new Error("Enter a positive HP value.");
+  return createCombatant(
+    {
+      Id: id(),
+      Name: trimmed,
+      Type: "Quick add",
+      HP: { Value: Math.floor(hp) },
+      AC: { Value: 10 },
+      InitiativeModifier: 0,
+    },
+    "enemy",
+  );
+}
+export function cleanEncounter(
+  e: Encounter,
+  characters: PersistentCharacter[],
+) {
+  const round = e.round;
+  const deadEnemies = e.combatants.filter(
+    (c) => c.side === "enemy" && c.hp === 0,
+  );
+  for (const dead of deadEnemies) removeCombatant(e, dead.id);
+  e.round = round;
+  for (const c of e.combatants) {
+    if (c.side !== "ally" && !c.persistentId) continue;
+    c.hp = c.maxHp;
+    c.tempHp = 0;
+    syncPersistentHp(characters, c);
+  }
 }
 export function removeCombatant(e: Encounter, combatantId: string) {
   const list = ordered(e),
@@ -207,7 +488,8 @@ export function normalizeOriginalStat(s: StatBlock): StatBlock {
 export function importOriginal(raw: Record<string, unknown>) {
   const library: StatBlock[] = [],
     spells: Spell[] = [],
-    saved: Encounter[] = [];
+    saved: Encounter[] = [],
+    characters: PersistentCharacter[] = [];
   let encounter: Encounter | undefined;
   for (const [key, input] of Object.entries(raw)) {
     let v: any = input;
@@ -228,7 +510,7 @@ export function importOriginal(raw: Record<string, unknown>) {
       key.startsWith("PersistentCharacters.") ||
       key.startsWith("ImprovedInitiative.PersistentCharacters.")
     ) {
-      if (v.StatBlock?.Name)
+      if (v.StatBlock?.Name) {
         library.push({
           ...normalizeOriginalStat(v.StatBlock),
           Id: v.Id || key,
@@ -237,6 +519,17 @@ export function importOriginal(raw: Record<string, unknown>) {
           ImportedCurrentHP: v.CurrentHP,
           ImportedNotes: v.Notes,
         });
+        upsertHeroFromStat(
+          characters,
+          {
+            ...normalizeOriginalStat(v.StatBlock),
+            Id: v.Id || key,
+            Name: v.Name || v.StatBlock.Name,
+          },
+          v.CurrentHP,
+          v.Notes || "",
+        );
+      }
     }
     if (key.startsWith("Spells.") && v.Name)
       spells.push({ ...v, Id: v.Id || key });
@@ -244,24 +537,55 @@ export function importOriginal(raw: Record<string, unknown>) {
       const e = emptyEncounter(v.Name || "Imported encounter");
       e.notes = v.Notes || "";
       e.combatants = v.Combatants.filter((x: any) => x.StatBlock?.Name).map(
-        (x: any) => ({
-          ...createCombatant(
+        (x: any) => {
+          const c = createCombatant(
             normalizeOriginalStat(x.StatBlock),
             x.StatBlock.Player ? "ally" : "enemy",
-          ),
-          id: x.Id || id(),
-          name: x.Alias || x.StatBlock.Name,
-          hp: clamp(
+          );
+          c.id = x.Id || c.id;
+          c.name = x.Alias || x.StatBlock.Name;
+          c.hp = clamp(
             num(x.CurrentHP),
             0,
             Math.max(1, num(x.StatBlock.HP?.Value, 1)),
-          ),
-          tempHp: Math.max(0, num(x.TemporaryHP)),
-          initiative: num(x.Initiative),
-          conditions: (x.Tags || []).map((t: any) => String(t.Text)),
-          notes: x.CurrentNotes || "",
-          hidden: !!x.Hidden,
-        }),
+          );
+          c.tempHp = Math.max(0, num(x.TemporaryHP));
+          c.initiative = num(x.Initiative);
+          c.notes = x.CurrentNotes || "";
+          c.hidden = !!x.Hidden;
+          c.tags = (Array.isArray(x.Tags) ? x.Tags : [])
+            .filter((t: any) => t && t.Text != null)
+            .map((t: any) => {
+              const text = String(t.Text);
+              const durationRaw =
+                t.DurationRemaining ?? t.Duration ?? t.duration;
+              const duration = Number(durationRaw);
+              return {
+                id: id(),
+                text,
+                remainingRounds:
+                  durationRaw != null &&
+                  Number.isInteger(duration) &&
+                  duration >= 0
+                    ? duration
+                    : null,
+                timing:
+                  t.DurationTiming === "StartOfTurn" ||
+                  t.DurationTiming === "start"
+                    ? ("start" as const)
+                    : ("end" as const),
+                untilCombatantId:
+                  typeof t.DurationCombatantId === "string" &&
+                  t.DurationCombatantId
+                    ? t.DurationCombatantId
+                    : c.id,
+                hidden: !!t.Hidden,
+                concentration: /^concentration$/i.test(text),
+              };
+            });
+          syncConditions(c);
+          return c;
+        },
       );
       e.activeId = e.combatants.some((c) => c.id === v.ActiveCombatantId)
         ? v.ActiveCombatantId
@@ -272,7 +596,7 @@ export function importOriginal(raw: Record<string, unknown>) {
       else saved.push(e);
     }
   }
-  return { library, spells, saved, encounter };
+  return { library, spells, saved, encounter, characters };
 }
 function validateStat(s: StatBlock) {
   if (!s || typeof s.Name !== "string" || typeof s.Id !== "string")
@@ -329,6 +653,18 @@ export function validateState(input: unknown): State {
     !Array.isArray(s.saved)
   )
     throw new Error("Invalid RoundKeep backup.");
+  s.characters ||= [];
+  s.party ||= { size: 4, level: 3 };
+  const { size, level } = s.party;
+  if (
+    !Number.isInteger(size) ||
+    size < 1 ||
+    size > 12 ||
+    !Number.isInteger(level) ||
+    level < 1 ||
+    level > 20
+  )
+    throw new Error("Invalid party budget.");
   const validEncounter = (e: Encounter) => {
     if (
       !e ||
@@ -340,7 +676,7 @@ export function validateState(input: unknown): State {
       e.round < 0
     )
       throw new Error("Invalid encounter.");
-    const ids = new Set();
+    const ids = new Set<string>();
     for (const c of e.combatants) {
       if (
         !c.stat ||
@@ -363,6 +699,46 @@ export function validateState(input: unknown): State {
         !["ally", "enemy"].includes(c.side)
       )
         throw new Error("Invalid condition or side.");
+      if (
+        !Array.isArray(c.tags) ||
+        (c.tags.length === 0 &&
+          c.conditions.some((x) => typeof x === "string"))
+      ) {
+        c.tags = (c.conditions || [])
+          .filter((x) => typeof x === "string")
+          .map((text) => ({
+            id: id(),
+            text,
+            remainingRounds: null,
+            timing: "end" as const,
+            untilCombatantId: c.id,
+            hidden: false,
+            concentration: /^concentration$/i.test(text),
+          }));
+      }
+      if (typeof c.sortIndex !== "number") c.sortIndex = 0;
+      if (c.initiativeGroup !== null && typeof c.initiativeGroup !== "string")
+        c.initiativeGroup = null;
+      if (c.initiativeGroup === undefined) c.initiativeGroup = null;
+      if (c.persistentId !== null && typeof c.persistentId !== "string")
+        c.persistentId = null;
+      if (c.persistentId === undefined) c.persistentId = null;
+      if (typeof c.revealedAC !== "boolean") c.revealedAC = false;
+      for (const t of c.tags) {
+        if (
+          !t ||
+          typeof t.id !== "string" ||
+          typeof t.text !== "string" ||
+          typeof t.untilCombatantId !== "string" ||
+          typeof t.hidden !== "boolean" ||
+          typeof t.concentration !== "boolean" ||
+          (t.remainingRounds !== null &&
+            (!Number.isInteger(t.remainingRounds) || t.remainingRounds < 0)) ||
+          (t.timing !== "start" && t.timing !== "end")
+        )
+          throw new Error("Invalid tag.");
+      }
+      syncConditions(c);
       ids.add(c.id);
     }
     if (e.activeId && !ids.has(e.activeId)) throw new Error("Invalid turn.");

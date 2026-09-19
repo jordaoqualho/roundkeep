@@ -1,6 +1,7 @@
 node_modules/
 dist/
 private-data/
+.worktrees/
 *.log
 .DS_Store
 .cursor/*
