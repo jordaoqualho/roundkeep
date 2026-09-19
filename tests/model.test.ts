@@ -176,8 +176,21 @@ test("original backup imports custom creatures, characters, spell and encounter 
   assert.equal(r.encounter?.combatants[0].hp, 4);
   assert.equal(r.encounter?.combatants[0].tempHp, 2);
   assert.deepEqual(r.encounter?.combatants[0].conditions, ["Poisoned"]);
+  assert.equal(r.encounter?.combatants[0].tags[0].text, "Poisoned");
   assert.equal(r.encounter?.combatants[0].hidden, true);
   assert.equal(r.encounter?.activeId, "c");
+  const validated = validateState({
+    version: 1,
+    encounter: r.encounter,
+    library: [],
+    spells: [],
+    saved: [],
+    characters: [],
+    party: { size: 4, level: 3 },
+    updatedAt: "",
+  });
+  assert.deepEqual(validated.encounter.combatants[0].conditions, ["Poisoned"]);
+  assert.equal(validated.encounter.combatants[0].tags[0].text, "Poisoned");
 });
 test("persistent characters keep HP across encounters and import CurrentHP", () => {
   const characters: PersistentCharacter[] = [];
@@ -406,4 +419,19 @@ test("legacy conditions strings migrate into untimed tags", () => {
   assert.equal(v.encounter.combatants[0].tags[0].text, "Poisoned");
   assert.equal(v.encounter.combatants[0].tags[0].remainingRounds, null);
   assert.deepEqual(v.encounter.combatants[0].conditions, ["Poisoned"]);
+  const emptyTags = createCombatant(stat);
+  emptyTags.tags = [];
+  emptyTags.conditions = ["Poisoned"];
+  const fromEmpty = validateState({
+    version: 1,
+    encounter: { ...emptyEncounter(), combatants: [emptyTags] },
+    library: [],
+    spells: [],
+    saved: [],
+    characters: [],
+    party: { size: 4, level: 3 },
+    updatedAt: "",
+  });
+  assert.equal(fromEmpty.encounter.combatants[0].tags[0].text, "Poisoned");
+  assert.deepEqual(fromEmpty.encounter.combatants[0].conditions, ["Poisoned"]);
 });

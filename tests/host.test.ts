@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   allowSocketRequest,
   isAllowedHost,
+  isLoopbackAddress,
   isLoopbackHost,
+  isLoopbackRequest,
   isSocketIoPath,
 } from "../src/host.mjs";
 
@@ -19,6 +21,36 @@ test("bootstrap stays loopback; LAN hosts are allowed for the table", () => {
   assert.equal(isAllowedHost("169.254.1.1"), true);
   assert.equal(isAllowedHost("localhost:5173"), true);
   assert.equal(isAllowedHost("8.8.8.8"), false);
+});
+
+test("isLoopbackAddress accepts loopback IPv4, IPv6, and IPv4-mapped forms", () => {
+  assert.equal(isLoopbackAddress("127.0.0.1"), true);
+  assert.equal(isLoopbackAddress("::1"), true);
+  assert.equal(isLoopbackAddress("::ffff:127.0.0.1"), true);
+  assert.equal(isLoopbackAddress("::FFFF:127.0.0.1"), true);
+  assert.equal(isLoopbackAddress("192.168.1.8"), false);
+  assert.equal(isLoopbackAddress("10.0.0.2"), false);
+  assert.equal(isLoopbackAddress("8.8.8.8"), false);
+  assert.equal(isLoopbackAddress(""), false);
+  assert.equal(
+    isLoopbackRequest({ socket: { remoteAddress: "::ffff:127.0.0.1" } }),
+    true,
+  );
+  assert.equal(
+    isLoopbackRequest({
+      socket: {
+        remoteAddress: "192.168.1.8",
+        address: () => ({ address: "127.0.0.1" }),
+      },
+    }),
+    false,
+  );
+  assert.equal(
+    isLoopbackRequest({
+      socket: { address: () => ({ address: "::1" }) },
+    }),
+    true,
+  );
 });
 
 test("socket.io paths skip the SPA handler; upgrades use the host allowlist", () => {

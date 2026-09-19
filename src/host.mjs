@@ -9,6 +9,37 @@ export function hostname(host) {
   return raw.split(":")[0];
 }
 
+export function isLoopbackAddress(address) {
+  let raw = String(address || "")
+    .trim()
+    .toLowerCase();
+  if (!raw) return false;
+  if (raw.startsWith("[")) {
+    const end = raw.indexOf("]");
+    if (end !== -1) raw = raw.slice(1, end);
+  }
+  raw = raw.split("%")[0];
+  return (
+    raw === "127.0.0.1" ||
+    raw === "::1" ||
+    raw === "0:0:0:0:0:0:0:1" ||
+    raw === "::ffff:127.0.0.1"
+  );
+}
+
+export function isLoopbackRequest(req) {
+  const socket = req?.socket;
+  if (!socket) return false;
+  if (socket.remoteAddress != null && socket.remoteAddress !== "") {
+    return isLoopbackAddress(socket.remoteAddress);
+  }
+  try {
+    return isLoopbackAddress(socket.address?.()?.address);
+  } catch {
+    return false;
+  }
+}
+
 export function isLoopbackHost(host) {
   return ["localhost", "127.0.0.1", "::1"].includes(hostname(host));
 }

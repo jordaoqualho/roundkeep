@@ -1557,8 +1557,10 @@ async function init() {
     app.innerHTML =
       '<div class="boot">ROUND<span class="wordmark-dot">·</span>KEEP<br><small>Waiting for the DM table…</small></div>';
     tableSocket = io();
-    tableSocket.emit("join encounter", playerRoom);
-    tableSocket.emit("request encounter", playerRoom);
+    tableSocket.on("connect", () => {
+      tableSocket!.emit("join encounter", playerRoom);
+      tableSocket!.emit("request encounter", playerRoom);
+    });
     tableSocket.on("encounter updated", (projection) => renderPlayer(projection));
     tableSocket.on("connect_error", () => {
       const note = app.querySelector(".boot small");
@@ -1644,8 +1646,10 @@ async function init() {
   render();
   persist();
   tableSocket = io();
-  tableSocket.emit("join encounter", state.encounter.id);
-  tableSocket.emit("update encounter", state.encounter.id, projectEncounter(state.encounter));
+  tableSocket.on("connect", () => {
+    tableSocket!.emit("join encounter", { roomId: state.encounter.id, role: "table" });
+    tableSocket!.emit("update encounter", state.encounter.id, projectEncounter(state.encounter));
+  });
   if (result.some((r) => r.status === "rejected"))
     toast("Part of the catalogue failed to load. Your personal stat blocks remain available.");
   if (import.meta.env.PROD && "serviceWorker" in navigator)

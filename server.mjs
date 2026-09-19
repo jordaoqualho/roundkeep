@@ -8,7 +8,7 @@ import { createRooms } from "./src/room.mjs";
 import {
   allowSocketRequest,
   isAllowedHost,
-  isLoopbackHost,
+  isLoopbackRequest,
   isSocketIoPath,
 } from "./src/host.mjs";
 
@@ -63,7 +63,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (url.pathname === "/api/bootstrap") {
-      if (!isLoopbackHost(req.headers.host)) {
+      if (!isLoopbackRequest(req)) {
         res.writeHead(403);
         res.end("Local access only");
         return;
@@ -82,7 +82,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (url.pathname === "/api/player-info") {
-      if (!isLoopbackHost(req.headers.host)) {
+      if (!isLoopbackRequest(req)) {
         res.writeHead(403);
         res.end("Local access only");
         return;
@@ -163,9 +163,19 @@ const io = new Server(server, {
   allowRequest: allowSocketRequest,
 });
 io.on("connection", (socket) => {
-  socket.on("join encounter", (roomId) => {
+  socket.on("join encounter", (payload) => {
+    const roomId =
+      typeof payload === "string"
+        ? payload
+        : payload && typeof payload === "object"
+          ? payload.roomId
+          : null;
     if (!roomId || typeof roomId !== "string") return;
     socket.data.roomId = roomId;
+    socket.data.role =
+      payload && typeof payload === "object" && payload.role === "table"
+        ? "table"
+        : "player";
     socket.join(roomId);
     const snapshot = rooms.get(roomId);
     if (snapshot) socket.emit("encounter updated", snapshot);
@@ -177,6 +187,7 @@ io.on("connection", (socket) => {
     if (snapshot) socket.emit("encounter updated", snapshot);
   });
   socket.on("update encounter", (roomId, projection) => {
+    if (socket.data.role !== "table") return;
     if (!roomId || typeof roomId !== "string") return;
     rooms.update(roomId, projection);
     io.to(roomId).emit("encounter updated", projection);

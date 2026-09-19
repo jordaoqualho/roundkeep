@@ -537,24 +537,55 @@ export function importOriginal(raw: Record<string, unknown>) {
       const e = emptyEncounter(v.Name || "Imported encounter");
       e.notes = v.Notes || "";
       e.combatants = v.Combatants.filter((x: any) => x.StatBlock?.Name).map(
-        (x: any) => ({
-          ...createCombatant(
+        (x: any) => {
+          const c = createCombatant(
             normalizeOriginalStat(x.StatBlock),
             x.StatBlock.Player ? "ally" : "enemy",
-          ),
-          id: x.Id || id(),
-          name: x.Alias || x.StatBlock.Name,
-          hp: clamp(
+          );
+          c.id = x.Id || c.id;
+          c.name = x.Alias || x.StatBlock.Name;
+          c.hp = clamp(
             num(x.CurrentHP),
             0,
             Math.max(1, num(x.StatBlock.HP?.Value, 1)),
-          ),
-          tempHp: Math.max(0, num(x.TemporaryHP)),
-          initiative: num(x.Initiative),
-          conditions: (x.Tags || []).map((t: any) => String(t.Text)),
-          notes: x.CurrentNotes || "",
-          hidden: !!x.Hidden,
-        }),
+          );
+          c.tempHp = Math.max(0, num(x.TemporaryHP));
+          c.initiative = num(x.Initiative);
+          c.notes = x.CurrentNotes || "";
+          c.hidden = !!x.Hidden;
+          c.tags = (Array.isArray(x.Tags) ? x.Tags : [])
+            .filter((t: any) => t && t.Text != null)
+            .map((t: any) => {
+              const text = String(t.Text);
+              const durationRaw =
+                t.DurationRemaining ?? t.Duration ?? t.duration;
+              const duration = Number(durationRaw);
+              return {
+                id: id(),
+                text,
+                remainingRounds:
+                  durationRaw != null &&
+                  Number.isInteger(duration) &&
+                  duration >= 0
+                    ? duration
+                    : null,
+                timing:
+                  t.DurationTiming === "StartOfTurn" ||
+                  t.DurationTiming === "start"
+                    ? ("start" as const)
+                    : ("end" as const),
+                untilCombatantId:
+                  typeof t.DurationCombatantId === "string" &&
+                  t.DurationCombatantId
+                    ? t.DurationCombatantId
+                    : c.id,
+                hidden: !!t.Hidden,
+                concentration: /^concentration$/i.test(text),
+              };
+            });
+          syncConditions(c);
+          return c;
+        },
       );
       e.activeId = e.combatants.some((c) => c.id === v.ActiveCombatantId)
         ? v.ActiveCombatantId
@@ -668,7 +699,11 @@ export function validateState(input: unknown): State {
         !["ally", "enemy"].includes(c.side)
       )
         throw new Error("Invalid condition or side.");
-      if (!Array.isArray(c.tags)) {
+      if (
+        !Array.isArray(c.tags) ||
+        (c.tags.length === 0 &&
+          c.conditions.some((x) => typeof x === "string"))
+      ) {
         c.tags = (c.conditions || [])
           .filter((x) => typeof x === "string")
           .map((text) => ({
