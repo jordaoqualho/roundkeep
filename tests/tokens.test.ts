@@ -82,6 +82,18 @@ test("current turn and ally marks are punctuation, not washes", () => {
   assert.equal(/\.combatant\.current \{[^}]*accent-soft/.test(css), false);
 });
 
+test("satellite surfaces share the contract", () => {
+  const credits = readFileSync(new URL("../public/credits.html", import.meta.url), "utf8");
+  assert.equal(credits.includes("#090d16"), false);
+  assert.equal(credits.includes("#e2e8f0"), false);
+  assert.match(credits, /background:\s*#121212/);
+  assert.match(credits, /color:\s*#fafafa/);
+  assert.match(
+    css,
+    /\.player-card\.current \{[\s\S]*?background: var\(--surface\);[\s\S]*?border-color: var\(--accent\);/,
+  );
+});
+
 test("overlays do not use drop shadows or glow rings", () => {
   assert.equal(css.includes("box-shadow: var(--shadow)"), false);
   assert.equal(css.includes("0 0 0 3px"), false);

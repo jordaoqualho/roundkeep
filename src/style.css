@@ -2134,6 +2134,9 @@ select::-ms-expand {
 
 .saved-card {
   padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
 }
 
 .saved-card .eyebrow {
@@ -2172,6 +2175,9 @@ select::-ms-expand {
   padding: 48px 20px;
   text-align: center;
   color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
 }
 
 .saved-empty h2 {
@@ -2281,8 +2287,8 @@ select::-ms-expand {
 }
 
 .player-card.current {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  background: var(--accent-soft);
+  background: var(--surface);
+  border-color: var(--accent);
 }
 
 .player-initiative {
