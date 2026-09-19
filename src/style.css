@@ -1310,7 +1310,7 @@ main {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--text);
 }
 
 .toggle.on {
@@ -2543,7 +2543,8 @@ button[aria-busy="true"]::after,
     height: 52px;
     flex-direction: row;
     justify-content: space-around;
-    border-top: 1px solid #1a1a1a;
+    border-top: 1px solid var(--line);
+    background: var(--rail-bg);
   }
 
   .brand-mark {

@@ -100,6 +100,12 @@ test("overlays do not use drop shadows or glow rings", () => {
   assert.equal(css.includes("drop-shadow("), false);
 });
 
+test("CSS has no leftover pre-contract brand hex", () => {
+  for (const hex of ["#000000", "#16a34a", "#22c55e", "#4ade80", "#1a1a1a", "#090d16"]) {
+    assert.equal(css.includes(hex), false, hex);
+  }
+});
+
 test("light theme is a snow-canvas translation with Graphite muted", () => {
   assert.equal(light.bg, "#fafafa");
   assert.equal(light.panel, "#fafafa");
