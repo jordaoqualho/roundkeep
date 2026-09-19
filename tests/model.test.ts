@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   addTag,
+  addHeroToEncounter,
   applyHP,
   concentrationDC,
   constitutionMod,
@@ -14,7 +15,10 @@ import {
   removeCombatant,
   roll,
   importOriginal,
+  syncPersistentHp,
+  upsertHeroFromStat,
   validateState,
+  type PersistentCharacter,
   type State,
   type Tag,
 } from "../src/model.ts";
@@ -136,6 +140,7 @@ test("original backup imports custom creatures, characters, spell and encounter 
   };
   const r = importOriginal(raw);
   assert.equal(r.library.length, 2);
+  assert.equal(r.characters.length, 1);
   assert.equal(r.library[0].InitiativeModifier, 4);
   assert.equal(r.library[1].ImportedCurrentHP, 5);
   assert.equal(r.library[1].ImportedNotes, "secret");
@@ -145,6 +150,40 @@ test("original backup imports custom creatures, characters, spell and encounter 
   assert.deepEqual(r.encounter?.combatants[0].conditions, ["Poisoned"]);
   assert.equal(r.encounter?.combatants[0].hidden, true);
   assert.equal(r.encounter?.activeId, "c");
+});
+test("persistent characters keep HP across encounters and import CurrentHP", () => {
+  const characters: PersistentCharacter[] = [];
+  const hero = upsertHeroFromStat(
+    characters,
+    { ...stat, Name: "Hero", Player: "player" },
+    5,
+    "secret",
+  );
+  assert.equal(characters.length, 1);
+  assert.equal(hero.currentHp, 5);
+  const e1 = emptyEncounter();
+  const c = addHeroToEncounter(e1, hero);
+  assert.equal(c.hp, 5);
+  assert.equal(c.persistentId, hero.id);
+  applyHP(c, 2, "heal");
+  syncPersistentHp(characters, c);
+  assert.equal(characters[0].currentHp, 7);
+  const e2 = emptyEncounter();
+  const again = addHeroToEncounter(e2, characters[0]);
+  assert.equal(again.hp, 7);
+  const raw = {
+    "PersistentCharacters.a": {
+      Id: "a",
+      Name: "Hero",
+      CurrentHP: 5,
+      Notes: "secret",
+      StatBlock: stat,
+    },
+  };
+  const imported = importOriginal(raw);
+  assert.equal(imported.characters.length, 1);
+  assert.equal(imported.characters[0].currentHp, 5);
+  assert.equal(imported.library.filter((s) => s.Player).length, 1);
 });
 test("backup validation rejects invalid HP, duplicate ids and invalid active turn", () => {
   const s: State = {

@@ -178,6 +178,55 @@ export function tickTags(
     syncConditions(c);
   }
 }
+export function upsertHeroFromStat(
+  characters: PersistentCharacter[],
+  stat: StatBlock,
+  currentHp?: number,
+  notes = "",
+): PersistentCharacter {
+  const maxHp = Math.max(1, num(stat.HP?.Value, 1));
+  const existing = characters.find(
+    (h) => h.id === stat.Id || h.stat.Id === stat.Id,
+  );
+  const record: PersistentCharacter = existing || {
+    id: stat.Id || id(),
+    stat: { ...structuredClone(stat), Player: "player" },
+    currentHp: maxHp,
+    maxHp,
+    notes,
+  };
+  record.stat = { ...structuredClone(stat), Player: "player" };
+  record.maxHp = maxHp;
+  record.currentHp = clamp(
+    currentHp === undefined ? record.currentHp : num(currentHp),
+    0,
+    maxHp,
+  );
+  record.notes = notes || record.notes;
+  if (!existing) characters.push(record);
+  return record;
+}
+export function addHeroToEncounter(
+  e: Encounter,
+  hero: PersistentCharacter,
+): Combatant {
+  const c = createCombatant(hero.stat, "ally");
+  c.persistentId = hero.id;
+  c.hp = clamp(hero.currentHp, 0, c.maxHp);
+  c.notes = hero.notes;
+  e.combatants.push(c);
+  return c;
+}
+export function syncPersistentHp(
+  characters: PersistentCharacter[],
+  c: Combatant,
+) {
+  const hero = characters.find((h) => h.id === c.persistentId);
+  if (!hero) return;
+  hero.currentHp = c.hp;
+  hero.maxHp = c.maxHp;
+  hero.notes = c.notes;
+}
 export function applyHP(
   c: Combatant,
   amount: number,
@@ -296,7 +345,8 @@ export function normalizeOriginalStat(s: StatBlock): StatBlock {
 export function importOriginal(raw: Record<string, unknown>) {
   const library: StatBlock[] = [],
     spells: Spell[] = [],
-    saved: Encounter[] = [];
+    saved: Encounter[] = [],
+    characters: PersistentCharacter[] = [];
   let encounter: Encounter | undefined;
   for (const [key, input] of Object.entries(raw)) {
     let v: any = input;
@@ -317,7 +367,7 @@ export function importOriginal(raw: Record<string, unknown>) {
       key.startsWith("PersistentCharacters.") ||
       key.startsWith("ImprovedInitiative.PersistentCharacters.")
     ) {
-      if (v.StatBlock?.Name)
+      if (v.StatBlock?.Name) {
         library.push({
           ...normalizeOriginalStat(v.StatBlock),
           Id: v.Id || key,
@@ -326,6 +376,17 @@ export function importOriginal(raw: Record<string, unknown>) {
           ImportedCurrentHP: v.CurrentHP,
           ImportedNotes: v.Notes,
         });
+        upsertHeroFromStat(
+          characters,
+          {
+            ...normalizeOriginalStat(v.StatBlock),
+            Id: v.Id || key,
+            Name: v.Name || v.StatBlock.Name,
+          },
+          v.CurrentHP,
+          v.Notes || "",
+        );
+      }
     }
     if (key.startsWith("Spells.") && v.Name)
       spells.push({ ...v, Id: v.Id || key });
@@ -361,7 +422,7 @@ export function importOriginal(raw: Record<string, unknown>) {
       else saved.push(e);
     }
   }
-  return { library, spells, saved, encounter };
+  return { library, spells, saved, encounter, characters };
 }
 function validateStat(s: StatBlock) {
   if (!s || typeof s.Name !== "string" || typeof s.Id !== "string")
