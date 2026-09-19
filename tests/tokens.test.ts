@@ -70,6 +70,18 @@ test("browser chrome uses the contract canvases", () => {
   assert.equal(main.includes("#f5f5f5"), false);
 });
 
+test("current turn and ally marks are punctuation, not washes", () => {
+  assert.match(
+    css,
+    /\.combatant\.current \{[\s\S]*?background: var\(--surface\);[\s\S]*?border-color: var\(--accent\);/,
+  );
+  assert.match(
+    css,
+    /\.avatar\.ally \{[\s\S]*?background: var\(--ally-soft\);[\s\S]*?color: var\(--ally\);/,
+  );
+  assert.equal(/\.combatant\.current \{[^}]*accent-soft/.test(css), false);
+});
+
 test("overlays do not use drop shadows or glow rings", () => {
   assert.equal(css.includes("box-shadow: var(--shadow)"), false);
   assert.equal(css.includes("0 0 0 3px"), false);

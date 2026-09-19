@@ -907,8 +907,8 @@ main {
 }
 
 .combatant.current {
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--surface);
+  border-color: var(--accent);
 }
 
 .combatant.current:before {
@@ -923,7 +923,7 @@ main {
 .initiative input {
   background: var(--input-bg);
   border: 1px solid var(--input-border);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   width: 36px;
   min-width: 36px;
   height: 28px;
@@ -978,15 +978,15 @@ main {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--enemy) 30%, var(--line));
+  border-radius: 8px;
+  border: 1px solid var(--line);
   background: var(--enemy-soft);
   color: var(--enemy);
 }
 
 .avatar.ally {
   background: var(--ally-soft);
-  border-color: color-mix(in srgb, var(--ally) 30%, var(--line));
+  border-color: var(--ally);
   color: var(--ally);
 }
 
@@ -999,7 +999,7 @@ main {
 
 .turn-label {
   font-size: var(--fs-meta);
-  color: var(--accent-strong);
+  color: var(--accent);
   letter-spacing: 0;
   font-weight: 500;
 }
@@ -1009,7 +1009,7 @@ main {
   gap: 4px;
   align-items: stretch;
   padding: 3px 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .hp-cell:hover {
@@ -1042,7 +1042,7 @@ main {
 .hp-track {
   height: 3px;
   background: var(--line);
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 
@@ -1050,7 +1050,7 @@ main {
 .hp-track i.ally {
   height: 100%;
   display: block;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   background: var(--ally);
 }
 
@@ -1184,9 +1184,9 @@ main {
   font-size: var(--fs-meta);
   font-weight: 500;
   letter-spacing: 0;
-  border: 1px solid color-mix(in srgb, var(--enemy) 30%, var(--line));
+  border: 1px solid var(--line);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-pill);
   color: var(--enemy);
   background: var(--enemy-soft);
 }
@@ -1277,10 +1277,10 @@ main {
 }
 
 .condition-chip {
-  color: var(--accent-strong);
-  background: var(--accent-soft);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
-  border-radius: 4px;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-pill);
   font-size: 11px;
   padding: 3px 6px;
 }
