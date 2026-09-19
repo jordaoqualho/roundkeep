@@ -6,9 +6,9 @@ alwaysApply: false
 
 # RoundKeep visual contract
 
-Authority: `desing.md` tokens. Mode: Operate. Stack: CSS variables in `src/style.css`.
+Authority: official Supabase design system (studio Button/typography), not marketing `desing.md` pills. Mode: Operate. Stack: CSS variables in `src/style.css`.
 
-Apply: canvas `#121212`; surfaces `#121212` / `#242424`; edges `#2e2e2e`; text `#fafafa` / `#b4b4b4` / `#898989`; accent `#3ecf8e` once per region; Manrope 400/500; tracking `-0.007em`; radii 9999 / 16 / 8; elevation = 1px border; focus = 1px green, no glow; motion 150–250ms.
+Apply: canvas `#121212`; surfaces `#121212` / `#242424`; edges `#2e2e2e`; text `#fafafa` / `#b4b4b4` / muted `#a3a3a3`; accent `#3ecf8e` once per region; Inter UI + Manrope headings; tracking `-0.01em` body; radii 6 / 8; chrome `tiny` 26px / 12px / 400; primary = phosphor + Obsidian ink (never snow-on-green); elevation = 1px border; focus = 1px green, no glow; motion 150–250ms. No pill buttons.
 
 Do not: 72px display type, marketing section gaps, logo clouds, second accent, card shadows, gradients, framework migration, Lucide swap, IA / shortcut / copy changes.
 
