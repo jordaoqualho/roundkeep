@@ -56,6 +56,11 @@ test("dark theme maps the desing.md canvas and phosphor accent", () => {
   assert.equal(dark["radius-pill"], "9999px");
 });
 
+test("UI type is Manrope only and never heavier than 500", () => {
+  assert.equal(css.includes("DM Sans"), false);
+  assert.equal(/font-weight:\s*(?:[6-9]\d{2}|[1-9]\d{3})/.test(css), false);
+});
+
 test("light theme is a snow-canvas translation with Graphite muted", () => {
   assert.equal(light.bg, "#fafafa");
   assert.equal(light.panel, "#fafafa");
