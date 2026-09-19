@@ -189,7 +189,7 @@ function projection() {
         side: c.side,
         initiative: c.initiative,
         conditions: c.conditions,
-        health: c.hp === 0 ? "Caído" : c.hp <= c.maxHp / 2 ? "Ferido" : "Saudável",
+        health: c.hp === 0 ? "Down" : c.hp <= c.maxHp / 2 ? "Bloodied" : "Healthy",
       })),
   };
 }
@@ -209,7 +209,7 @@ function persist() {
     .catch(() => {
       saveError = true;
       updateSaveStatus();
-      toast("Não foi possível salvar. Exporte um backup para proteger suas alterações.");
+      toast("Could not save. Export a backup to protect your changes.");
     })
     .finally(() => {
       pendingSaves--;
@@ -222,7 +222,7 @@ function updateSaveStatus() {
   if (el)
     el.innerHTML =
       icon(saveError ? "WifiOff" : "CheckCheck", 14) +
-      (saveError ? "Falha ao salvar" : pendingSaves ? "Salvando…" : "Salvo neste navegador");
+      (saveError ? "Save failed" : pendingSaves ? "Saving…" : "Saved in this browser");
 }
 function change(fn: () => void, message?: string) {
   history.push(structuredClone(state.encounter));
@@ -245,7 +245,7 @@ function allSpells() {
   return [...state.spells, ...baseSpells];
 }
 function openModal(title: string, body: string, wide = false) {
-  modal.innerHTML = `<div class="modal-head"><div><h2>${title}</h2></div>${btn("close", "", "X", "icon-button", 'aria-label="Fechar"')}</div>${body}`;
+  modal.innerHTML = `<div class="modal-head"><div><h2>${title}</h2></div>${btn("close", "", "X", "icon-button", 'aria-label="Close"')}</div>${body}`;
   modal.classList.toggle("wide", wide);
   modal.showModal();
   enhanceSelects(modal);
@@ -326,83 +326,83 @@ function commandActions() {
   return [
     {
       action: "next",
-      label: started ? "Próximo turno" : "Iniciar combate",
-      hint: started ? "Avançar a ordem" : "Começar a rodada",
+      label: started ? "Next turn" : "Start combat",
+      hint: started ? "Advance the order" : "Begin the round",
       icon: started ? "ChevronRight" : "Play",
       kbd: "N",
     },
     {
       action: "roll-initiative",
-      label: "Rolar iniciativas",
-      hint: "1d20 + modificador",
+      label: "Roll initiative",
+      hint: "1d20 + modifier",
       icon: "Dices",
     },
     {
       action: "dice",
-      label: "Rolar dados",
-      hint: "Expressão livre",
+      label: "Roll dice",
+      hint: "Free expression",
       icon: "Dices",
       kbd: "D",
     },
     {
       action: "undo",
-      label: "Desfazer última ação",
-      hint: "Reverter o último passo",
+      label: "Undo last action",
+      hint: "Revert the last step",
       icon: "RotateCcw",
       kbd: "⌘Z",
     },
     {
       action: "save",
-      label: "Salvar encontro",
-      hint: "Guardar na coleção",
+      label: "Save encounter",
+      hint: "Store in collection",
       icon: "Save",
     },
     {
       action: "new",
-      label: "Novo encontro",
-      hint: "Abrir uma mesa nova",
+      label: "New encounter",
+      hint: "Open a fresh table",
       icon: "Plus",
     },
     {
       action: "add-party",
-      label: "Adicionar grupo",
-      hint: "Heróis da biblioteca",
+      label: "Add party",
+      hint: "Heroes from library",
       icon: "Users",
     },
     {
       action: "create",
-      label: "Criar ficha",
-      hint: "Combatente ou magia",
+      label: "Create stat block",
+      hint: "Combatant or spell",
       icon: "Plus",
     },
     {
       action: "notes",
-      label: "Notas do mestre",
-      hint: "Anotações do encontro",
+      label: "DM notes",
+      hint: "Encounter annotations",
       icon: "ScrollText",
     },
     {
       action: view === "saved" ? "view-combat" : "view-saved",
-      label: view === "saved" ? "Voltar à mesa" : "Encontros salvos",
-      hint: view === "saved" ? "Combate atual" : "Abrir a coleção",
+      label: view === "saved" ? "Back to table" : "Saved encounters",
+      hint: view === "saved" ? "Current combat" : "Open collection",
       icon: view === "saved" ? "Swords" : "Layers",
     },
     {
       action: "player",
-      label: "Visão dos jogadores",
-      hint: "Janela local da mesa",
+      label: "Player view",
+      hint: "Local table window",
       icon: "Eye",
     },
     {
       action: "settings",
-      label: "Dados e configurações",
-      hint: "Backup e aparência",
+      label: "Data and settings",
+      hint: "Backup and appearance",
       icon: "Settings2",
     },
     {
       action: "help",
-      label: "Ajuda e atalhos",
-      hint: "Teclado da mesa",
+      label: "Help and shortcuts",
+      hint: "Table keyboard",
       icon: "CircleHelp",
     },
   ];
@@ -425,15 +425,15 @@ function renderCommandList(q = "") {
     .map((item, i) => {
       const index = actions.length + i;
       const spell = "Level" in item;
-      return `<button type="button" class="command-item ${index === 0 ? "active" : ""}" data-action="run-command" data-run="${spell ? "command-preview" : "command-add"}" data-id="${esc(item.Id)}" data-index="${index}">${icon(spell ? "Sparkles" : item.Player ? "Shield" : "Swords", 16)}<span>${esc(item.Name)}</span><small>${spell ? `Magia · nível ${num(item.Level)}` : "Adicionar ao encontro"}</small></button>`;
+      return `<button type="button" class="command-item ${index === 0 ? "active" : ""}" data-action="run-command" data-run="${spell ? "command-preview" : "command-add"}" data-id="${esc(item.Id)}" data-index="${index}">${icon(spell ? "Sparkles" : item.Player ? "Shield" : "Swords", 16)}<span>${esc(item.Name)}</span><small>${spell ? `Spell · level ${num(item.Level)}` : "Add to encounter"}</small></button>`;
     })
     .join("");
-  return `${actionRows ? `<div class="command-group">Ações</div>${actionRows}` : ""}${
-    recordRows ? `<div class="command-group">Biblioteca</div>${recordRows}` : ""
-  }${!actionRows && !recordRows ? `<p class="command-empty">Nenhuma ação ou ficha encontrada.</p>` : ""}`;
+  return `${actionRows ? `<div class="command-group">Actions</div>${actionRows}` : ""}${
+    recordRows ? `<div class="command-group">Library</div>${recordRows}` : ""
+  }${!actionRows && !recordRows ? `<p class="command-empty">No actions or stat blocks found.</p>` : ""}`;
 }
 function openCommand(seed = "") {
-  command.innerHTML = `<label class="command-search">${icon("Search", 16)}<input id="command-input" type="search" value="${esc(seed)}" placeholder="Buscar fichas ou executar uma ação…" aria-label="Buscar ou executar uma ação" autocomplete="off"><kbd>esc</kbd></label><div id="command-list" class="command-list" role="listbox">${renderCommandList(seed)}</div>`;
+  command.innerHTML = `<label class="command-search">${icon("Search", 16)}<input id="command-input" type="search" value="${esc(seed)}" placeholder="Search stat blocks or run an action…" aria-label="Search or run an action" autocomplete="off"><kbd>esc</kbd></label><div id="command-list" class="command-list" role="listbox">${renderCommandList(seed)}</div>`;
   if (!command.open) command.showModal();
   const input = command.querySelector<HTMLInputElement>("#command-input");
   input?.focus();
@@ -460,28 +460,28 @@ function render() {
     current = cs.find((c) => c.id === e.activeId),
     allies = cs.filter((c) => c.side === "ally"),
     enemies = cs.filter((c) => c.side === "enemy");
-  app.innerHTML = `<aside class="rail"><a class="brand-mark" href="/" aria-label="RoundKeep início" title="RoundKeep · Início"><svg viewBox="0 0 64 64" fill="none"><path d="M12 16 H22 V22 H28 V16 H36 V22 H42 V16 H52 V36 C52 47 32 56 32 56 C32 56 12 47 12 36 Z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M32 26 L41 38 H36 V48 H28 V38 H23 Z" fill="var(--rail-bg)" stroke="var(--rail-bg)" stroke-width="1.5" stroke-linejoin="round"/></svg></a><div class="rail-nav">${btn("view-combat", "", "Swords", "rail-button " + (view === "combat" ? "active" : ""), 'aria-label="Mesa de combate" title="Mesa de combate"')}${btn("view-saved", "", "Layers", "rail-button " + (view === "saved" ? "active" : ""), 'aria-label="Encontros salvos" title="Encontros salvos"')}${btn("notes", "", "ScrollText", "rail-button", 'aria-label="Notas do encontro" title="Notas do encontro"')}</div><div class="rail-bottom">${btn("help", "", "CircleHelp", "rail-button", 'aria-label="Ajuda e atalhos"')}${btn("settings", "", "Settings2", "rail-button", 'aria-label="Dados e configurações"')}<span class="profile" title="Mestre da mesa">M</span></div></aside>
- <div class="workspace"><header class="topbar"><div class="topbar-context"><div class="wordmark">ROUNDKEEP</div><div class="breadcrumb">Sua mesa ${icon("ChevronRight", 13)} <strong>${view === "saved" ? "Encontros" : "Encontro atual"}</strong></div></div>${btn("open-command", "<span>Buscar ou ação rápida…</span><kbd>⌘ K</kbd>", "Search", "command-trigger", 'aria-label="Abrir busca e ações rápidas"')}<div class="top-actions"><span id="save-status" class="save-status"></span>${btn("player", "Visão dos jogadores", "Eye", "subtle")}${btn("settings", "", "Settings2", "icon-button", 'aria-label="Configurações"')}</div></header>
- <main><section class="page-heading"><div><h1>${view === "saved" ? "Seus encontros" : esc(e.name)} ${view === "combat" ? btn("rename", "", "Pencil", "title-edit", 'aria-label="Renomear encontro"') : ""}</h1></div><div class="heading-actions">${btn("save", "Salvar encontro", "Save", "secondary")}${btn("new", "Novo encontro", "Plus", "primary")}</div></section>
+  app.innerHTML = `<aside class="rail"><a class="brand-mark" href="/" aria-label="RoundKeep home" title="RoundKeep · Home"><svg viewBox="0 0 64 64" fill="none"><path d="M12 16 H22 V22 H28 V16 H36 V22 H42 V16 H52 V36 C52 47 32 56 32 56 C32 56 12 47 12 36 Z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M32 26 L41 38 H36 V48 H28 V38 H23 Z" fill="var(--rail-bg)" stroke="var(--rail-bg)" stroke-width="1.5" stroke-linejoin="round"/></svg></a><div class="rail-nav">${btn("view-combat", "", "Swords", "rail-button " + (view === "combat" ? "active" : ""), 'aria-label="Combat table" title="Combat table"')}${btn("view-saved", "", "Layers", "rail-button " + (view === "saved" ? "active" : ""), 'aria-label="Saved encounters" title="Saved encounters"')}${btn("notes", "", "ScrollText", "rail-button", 'aria-label="Encounter notes" title="Encounter notes"')}</div><div class="rail-bottom">${btn("help", "", "CircleHelp", "rail-button", 'aria-label="Help and shortcuts"')}${btn("settings", "", "Settings2", "rail-button", 'aria-label="Data and settings"')}<span class="profile" title="Dungeon Master">M</span></div></aside>
+ <div class="workspace"><header class="topbar"><div class="topbar-context"><div class="wordmark">ROUNDKEEP</div><div class="breadcrumb">Your table ${icon("ChevronRight", 13)} <strong>${view === "saved" ? "Encounters" : "Current encounter"}</strong></div></div>${btn("open-command", "<span>Search or quick action…</span><kbd>⌘ K</kbd>", "Search", "command-trigger", 'aria-label="Open search and quick actions"')}<div class="top-actions"><span id="save-status" class="save-status"></span>${btn("player", "Player view", "Eye", "subtle")}${btn("settings", "", "Settings2", "icon-button", 'aria-label="Settings"')}</div></header>
+ <main><section class="page-heading"><div><h1>${view === "saved" ? "Your encounters" : esc(e.name)} ${view === "combat" ? btn("rename", "", "Pencil", "title-edit", 'aria-label="Rename encounter"') : ""}</h1></div><div class="heading-actions">${btn("save", "Save encounter", "Save", "secondary")}${btn("new", "New encounter", "Plus", "primary")}</div></section>
  ${
    view === "saved"
      ? renderSaved()
-     : `<div class="combat-layout"><aside class="library panel"><div class="panel-title"><div><h2>Biblioteca</h2></div>${btn("create", "", "Plus", "icon-button", 'aria-label="Criar ficha"')}</div><div class="library-tabs">${[
-         ["creatures", "Criaturas"],
-         ["characters", "Heróis"],
-         ["spells", "Magias"],
+     : `<div class="combat-layout"><aside class="library panel"><div class="panel-title"><div><h2>Library</h2></div>${btn("create", "", "Plus", "icon-button", 'aria-label="Create stat block"')}</div><div class="library-tabs">${[
+         ["creatures", "Creatures"],
+         ["characters", "Heroes"],
+         ["spells", "Spells"],
        ]
          .map(([key, label]) => btn("tab", label, undefined, tab === key ? "selected" : "", `data-tab="${key}"`))
          .join(
            "",
-         )}</div><div class="library-search"><label class="searchbox">${icon("Search", 16)}<input id="search" type="search" value="${esc(query)}" placeholder="Buscar ${tab === "spells" ? "magias" : "na biblioteca"}…" aria-label="Buscar na biblioteca"><kbd>/</kbd></label><select id="source" aria-label="Filtrar origem"><option value="all" ${source === "all" ? "selected" : ""}>Todas as origens</option><option value="personal" ${source === "personal" ? "selected" : ""}>Minha biblioteca</option><option value="srd" ${source === "srd" ? "selected" : ""}>Regras básicas (SRD)</option></select></div><div id="library-list" class="library-list">${renderLibrary()}</div><div class="library-footer">${icon("Database", 13)} Catálogo disponível offline <span>${allCreatures().length}</span></div></aside>
- <section class="battle"><div class="battle-toolbar"><div class="round-icon">${icon("Swords", 18)}</div><div><h2>${e.started ? "Rodada " + String(e.round).padStart(2, "0") : "Ordem de iniciativa"}</h2></div><div class="battle-buttons">${e.started ? btn("end-combat", "", "Pause", "icon-button", 'aria-label="Encerrar combate" title="Encerrar combate"') : ""}${btn("roll-initiative", "", "Dices", "icon-button", 'aria-label="Rolar iniciativas" title="Rolar iniciativas"')}${btn("undo", "", "RotateCcw", "icon-button", `aria-label="Desfazer última ação" title="Desfazer" ${!history.length ? "disabled" : ""}`)}<span class="divider"></span>${btn("previous", "", "ChevronLeft", "icon-button", `aria-label="Turno anterior" ${!e.started ? "disabled" : ""}`)}${btn("next", e.started ? "Próximo turno" : "Iniciar combate", e.started ? "ChevronRight" : "Play", "primary", `${!cs.length ? "disabled" : ""} title="${e.started ? "Próximo turno (N)" : "Iniciar combate"}"`)}</div></div>
- <div class="battle-summary"><span><i class="dot ally-dot"></i>${allies.length} aliados</span><span><i class="dot enemy-dot"></i>${enemies.length} adversários</span><span class="summary-end">${icon("Users", 14)} ${cs.length} combatentes</span></div>
- ${cs.length ? `<div class="table-labels"><span>Ini</span><span>Combatente</span><span>PV</span><span>CA</span><span></span></div><div class="combatant-list">${cs.map((c) => renderCombatant(c, e.activeId === c.id)).join("")}</div><div class="add-combatant">${btn("create", "Adicionar combatente", "Plus", "text-button")}${btn("add-party", "Adicionar grupo", "Users", "text-button")}</div>` : `<div class="empty-combat"><h2>Nenhum combatente</h2><p>Use o botão + na biblioteca ou adicione seu grupo.</p><div>${btn("add-party", "Adicionar grupo", "Users", "primary")}${btn("demo", "Abrir exemplo", undefined, "subtle")}</div></div>`}
- <div class="battle-bottom"><div class="encounter-note"><span>${icon("ScrollText", 15)} Notas</span>${btn("notes", e.notes ? esc(e.notes.slice(0, 95)) : "Adicionar notas do encontro", undefined, "note-preview")}</div><div class="session-log"><div><h3>Atividade</h3>${btn("log", "Ver histórico", "ChevronRight", "text-button")}</div><p>${esc(e.log[0] || "Nenhuma ação registrada.")}</p></div></div>
- <footer class="battle-footer"><span>${icon("Keyboard", 14)} <kbd>N</kbd> próximo turno <kbd>/</kbd> buscar <kbd>D</kbd> dados</span>${btn("dice", "Rolar dados", "Dices", "text-button")}</footer></section><aside class="details panel">${renderDetails()}</aside></div>`
+         )}</div><div class="library-search"><label class="searchbox">${icon("Search", 16)}<input id="search" type="search" value="${esc(query)}" placeholder="Search ${tab === "spells" ? "spells" : "library"}…" aria-label="Search library"><kbd>/</kbd></label><select id="source" aria-label="Filter source"><option value="all" ${source === "all" ? "selected" : ""}>All sources</option><option value="personal" ${source === "personal" ? "selected" : ""}>My library</option><option value="srd" ${source === "srd" ? "selected" : ""}>Basic rules (SRD)</option></select></div><div id="library-list" class="library-list">${renderLibrary()}</div><div class="library-footer">${icon("Database", 13)} Offline catalogue available <span>${allCreatures().length}</span></div></aside>
+ <section class="battle"><div class="battle-toolbar"><div class="round-icon">${icon("Swords", 18)}</div><div><h2>${e.started ? "Round " + String(e.round).padStart(2, "0") : "Initiative order"}</h2></div><div class="battle-buttons">${e.started ? btn("end-combat", "", "Pause", "icon-button", 'aria-label="End combat" title="End combat"') : ""}${btn("roll-initiative", "", "Dices", "icon-button", 'aria-label="Roll initiative" title="Roll initiative"')}${btn("undo", "", "RotateCcw", "icon-button", `aria-label="Undo last action" title="Undo" ${!history.length ? "disabled" : ""}`)}<span class="divider"></span>${btn("previous", "", "ChevronLeft", "icon-button", `aria-label="Previous turn" ${!e.started ? "disabled" : ""}`)}${btn("next", e.started ? "Next turn" : "Start combat", e.started ? "ChevronRight" : "Play", "primary", `${!cs.length ? "disabled" : ""} title="${e.started ? "Next turn (N)" : "Start combat"}"`)}</div></div>
+ <div class="battle-summary"><span><i class="dot ally-dot"></i>${allies.length} allies</span><span><i class="dot enemy-dot"></i>${enemies.length} enemies</span><span class="summary-end">${icon("Users", 14)} ${cs.length} combatants</span></div>
+ ${cs.length ? `<div class="table-labels"><span>Init</span><span>Combatant</span><span>HP</span><span>AC</span><span></span></div><div class="combatant-list">${cs.map((c) => renderCombatant(c, e.activeId === c.id)).join("")}</div><div class="add-combatant">${btn("create", "Add combatant", "Plus", "text-button")}${btn("add-party", "Add party", "Users", "text-button")}</div>` : `<div class="empty-combat"><h2>No combatants</h2><p>Use the + button in the library or add your party.</p><div>${btn("add-party", "Add party", "Users", "primary")}${btn("demo", "Open demo", undefined, "subtle")}</div></div>`}
+ <div class="battle-bottom"><div class="encounter-note"><span>${icon("ScrollText", 15)} Notes</span>${btn("notes", e.notes ? esc(e.notes.slice(0, 95)) : "Add encounter notes", undefined, "note-preview")}</div><div class="session-log"><div><h3>Activity</h3>${btn("log", "View history", "ChevronRight", "text-button")}</div><p>${esc(e.log[0] || "No actions recorded.")}</p></div></div>
+ <footer class="battle-footer"><span>${icon("Keyboard", 14)} <kbd>N</kbd> next turn <kbd>/</kbd> search <kbd>D</kbd> dice</span>${btn("dice", "Roll dice", "Dices", "text-button")}</footer></section><aside class="details panel">${renderDetails()}</aside></div>`
  }
- </main><footer class="app-footer"><span><i class="live-dot"></i> ${navigator.onLine ? "Armazenamento local" : "Offline · dados disponíveis"}</span><span>D&D 5e · SRD 2024</span></footer></div>`;
+ </main><footer class="app-footer"><span><i class="live-dot"></i> ${navigator.onLine ? "Local storage" : "Offline · data available"}</span><span>D&D 5e · SRD 2024</span></footer></div>`;
   updateSaveStatus();
   enhanceSelects(app);
 }
@@ -505,80 +505,80 @@ function renderLibrary() {
       .toLowerCase()
       .includes(q),
   );
-  return `<div class="list-caption">${tab === "characters" ? "Seu grupo" : source === "personal" ? "Minha biblioteca" : "Fichas disponíveis"}<span>${items.length}</span></div>${
+  return `<div class="list-caption">${tab === "characters" ? "Your party" : source === "personal" ? "My library" : "Available stat blocks"}<span>${items.length}</span></div>${
     items.length
       ? items
           .slice(0, 150)
           .map(
             (s) =>
-              `<div class="library-item"><button class="library-preview" data-action="preview" data-id="${esc(s.Id)}"><span class="small-glyph ${s.Player ? "green" : ""}">${icon(tab === "spells" ? "Sparkles" : s.Player ? "Shield" : "Swords", 17)}</span><span><strong>${esc(s.Name)}</strong><small>${tab === "spells" ? `Nível ${num(s.Level)} · ${esc(s.School)}` : s.Player ? "Personagem do grupo" : esc(s.Path || (s.Id.startsWith("creatures-") ? "SRD 2024 · " : "") + "ND " + (s.Challenge || "—"))}</small></span></button>${tab !== "spells" ? btn("add", "", "Plus", "add-button", `data-id="${esc(s.Id)}" aria-label="Adicionar ${esc(s.Name)}"`) : ""}</div>`,
+              `<div class="library-item"><button class="library-preview" data-action="preview" data-id="${esc(s.Id)}"><span class="small-glyph ${s.Player ? "green" : ""}">${icon(tab === "spells" ? "Sparkles" : s.Player ? "Shield" : "Swords", 17)}</span><span><strong>${esc(s.Name)}</strong><small>${tab === "spells" ? `Level ${num(s.Level)} · ${esc(s.School)}` : s.Player ? "Party character" : esc(s.Path || (s.Id.startsWith("creatures-") ? "SRD 2024 · " : "") + "CR " + (s.Challenge || "—"))}</small></span></button>${tab !== "spells" ? btn("add", "", "Plus", "add-button", `data-id="${esc(s.Id)}" aria-label="Add ${esc(s.Name)}"`) : ""}</div>`,
           )
           .join("")
-      : `<div class="empty-library">${icon("Search", 26)}<p>Nenhum resultado.</p><small>Tente outro nome ou origem.</small></div>`
-  }${items.length > 150 ? '<p class="list-hint">Refine a busca para ver os demais resultados.</p>' : ""}`;
+      : `<div class="empty-library">${icon("Search", 26)}<p>No results.</p><small>Try another name or source.</small></div>`
+  }${items.length > 150 ? '<p class="list-hint">Refine your search to see more results.</p>' : ""}`;
 }
 function renderCombatant(c: Combatant, active: boolean) {
-  return `<article class="combatant ${active ? "current" : ""} ${selected === c.id ? "selected" : ""} ${c.hp === 0 ? "fallen" : ""}"><div class="initiative"><input type="number" min="-99" max="999" value="${c.initiative}" data-field="initiative" data-id="${c.id}" aria-label="Iniciativa de ${esc(c.name)}"></div><button class="combatant-identity" data-action="select" data-id="${c.id}">${avatar(c)}<span><strong>${esc(c.name)} ${c.hidden ? icon("EyeOff", 12) : ""}</strong><small>${active ? '<span class="turn-label">Turno atual</span>' : c.side === "ally" ? "Aliado" : "Adversário"}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}${c.hp === 0 ? " · Caído" : ""}</small></span></button><button class="hp-cell" data-action="hp" data-id="${c.id}" aria-label="Alterar vida de ${esc(c.name)}"><span><strong>${c.hp}</strong><small>/ ${c.maxHp}</small>${c.tempHp ? `<em>+${c.tempHp}</em>` : ""}</span><div class="hp-track"><i class="${c.hp / c.maxHp <= 0.25 ? "critical" : c.side}" style="width:${(c.hp / c.maxHp) * 100}%"></i></div></button><div class="armor">${icon("Shield", 14)}${c.ac}</div>${btn("combatant-menu", "", "MoreHorizontal", "icon-button", `data-id="${c.id}" aria-label="Opções de ${esc(c.name)}"`)}</article>`;
+  return `<article class="combatant ${active ? "current" : ""} ${selected === c.id ? "selected" : ""} ${c.hp === 0 ? "fallen" : ""}"><div class="initiative"><input type="number" min="-99" max="999" value="${c.initiative}" data-field="initiative" data-id="${c.id}" aria-label="Initiative for ${esc(c.name)}"></div><button class="combatant-identity" data-action="select" data-id="${c.id}">${avatar(c)}<span><strong>${esc(c.name)} ${c.hidden ? icon("EyeOff", 12) : ""}</strong><small>${active ? '<span class="turn-label">Current turn</span>' : c.side === "ally" ? "Ally" : "Enemy"}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}${c.hp === 0 ? " · Down" : ""}</small></span></button><button class="hp-cell" data-action="hp" data-id="${c.id}" aria-label="Change HP for ${esc(c.name)}"><span><strong>${c.hp}</strong><small>/ ${c.maxHp}</small>${c.tempHp ? `<em>+${c.tempHp}</em>` : ""}</span><div class="hp-track"><i class="${c.hp / c.maxHp <= 0.25 ? "critical" : c.side}" style="width:${(c.hp / c.maxHp) * 100}%"></i></div></button><div class="armor">${icon("Shield", 14)}${c.ac}</div>${btn("combatant-menu", "", "MoreHorizontal", "icon-button", `data-id="${c.id}" aria-label="Options for ${esc(c.name)}"`)}</article>`;
 }
 function renderDetails() {
   const c = selectedC();
   if (!c)
-    return `<div class="panel-title"><div><h2>Ficha de combate</h2></div>${icon("BookOpen", 20)}</div><div class="detail-empty">${icon("BookOpen", 42)}<h3>Selecione um combatente</h3><p>Selecione um combatente para consultar sua ficha, ações e condições.</p></div>`;
-  return `<div class="detail-header">${btn("back-to-combat", "Combate", "ChevronLeft", "back-to-combat text-button")}<h3>Ficha</h3>${btn("edit", "", "Pencil", "icon-button", `data-id="${c.id}" aria-label="Editar combatente"`)}</div><div class="detail-identity">${avatar(c, true)}<span class="badge ${c.side}">${c.side === "ally" ? "Aliado" : "Adversário"}</span><h2>${esc(c.name)}</h2><p>${esc(c.stat.Type || "Combatente personalizado")}</p></div><div class="stat-tiles"><div>${icon("Heart", 16)}<strong>${c.hp}<small>/${c.maxHp}</small></strong><span>Vida</span></div><div>${icon("Shield", 16)}<strong>${c.ac}</strong><span>Defesa</span></div><div>${icon("Zap", 16)}<strong>${num(c.stat.InitiativeModifier) >= 0 ? "+" : ""}${num(c.stat.InitiativeModifier)}</strong><span>Iniciativa</span></div></div><div class="detail-content"><div class="section-line"><h3>Condições</h3>${btn("conditions", "", "Plus", "tiny-button", 'aria-label="Adicionar condição"')}</div><div class="condition-tags">${c.conditions.length ? c.conditions.map((x) => btn("remove-condition", esc(x) + " ×", undefined, "condition-chip", `data-condition="${esc(x)}"`)).join("") : '<span class="muted">Nenhuma condição ativa</span>'}</div><div class="reaction-row"><span>Reação disponível</span><button class="toggle ${!c.reaction ? "on" : ""}" data-action="reaction" role="switch" aria-checked="${!c.reaction}" aria-label="Reação disponível"><i></i></button></div>${renderStat(c.stat)}<h3>Notas do combatente</h3><textarea id="combatant-notes" placeholder="Concentração, objetivos, lembretes…">${esc(c.notes)}</textarea></div>`;
+    return `<div class="panel-title"><div><h2>Combat sheet</h2></div>${icon("BookOpen", 20)}</div><div class="detail-empty">${icon("BookOpen", 42)}<h3>Select a combatant</h3><p>Select a combatant to view their stat block, actions, and conditions.</p></div>`;
+  return `<div class="detail-header">${btn("back-to-combat", "Combat", "ChevronLeft", "back-to-combat text-button")}<h3>Sheet</h3>${btn("edit", "", "Pencil", "icon-button", `data-id="${c.id}" aria-label="Edit combatant"`)}</div><div class="detail-identity">${avatar(c, true)}<span class="badge ${c.side}">${c.side === "ally" ? "Ally" : "Enemy"}</span><h2>${esc(c.name)}</h2><p>${esc(c.stat.Type || "Custom combatant")}</p></div><div class="stat-tiles"><div>${icon("Heart", 16)}<strong>${c.hp}<small>/${c.maxHp}</small></strong><span>HP</span></div><div>${icon("Shield", 16)}<strong>${c.ac}</strong><span>AC</span></div><div>${icon("Zap", 16)}<strong>${num(c.stat.InitiativeModifier) >= 0 ? "+" : ""}${num(c.stat.InitiativeModifier)}</strong><span>Initiative</span></div></div><div class="detail-content"><div class="section-line"><h3>Conditions</h3>${btn("conditions", "", "Plus", "tiny-button", 'aria-label="Add condition"')}</div><div class="condition-tags">${c.conditions.length ? c.conditions.map((x) => btn("remove-condition", esc(x) + " ×", undefined, "condition-chip", `data-condition="${esc(x)}"`)).join("") : '<span class="muted">No active conditions</span>'}</div><div class="reaction-row"><span>Reaction available</span><button class="toggle ${!c.reaction ? "on" : ""}" data-action="reaction" role="switch" aria-checked="${!c.reaction}" aria-label="Reaction available"><i></i></button></div>${renderStat(c.stat)}<h3>Combatant notes</h3><textarea id="combatant-notes" placeholder="Concentration, objectives, reminders…">${esc(c.notes)}</textarea></div>`;
 }
 function renderStat(s: StatBlock) {
-  return `${s.Speed?.length ? `<p class="speed"><strong>Deslocamento</strong> ${esc(s.Speed.join(", "))}</p>` : ""}${
+  return `${s.Speed?.length ? `<p class="speed"><strong>Speed</strong> ${esc(s.Speed.join(", "))}</p>` : ""}${
     s.Abilities
       ? `<div class="abilities">${Object.entries(s.Abilities)
           .map(
             ([k, v]) =>
-              `<button data-action="ability" data-score="${num(v)}" data-ability="${esc(k)}"><span>${esc(({ Str: "FOR", Dex: "DES", Con: "CON", Int: "INT", Wis: "SAB", Cha: "CAR" } as Record<string, string>)[k] || k)}</span><strong>${num(v)}</strong><small>${Math.floor((num(v) - 10) / 2) >= 0 ? "+" : ""}${Math.floor((num(v) - 10) / 2)}</small></button>`,
+              `<button data-action="ability" data-score="${num(v)}" data-ability="${esc(k)}"><span>${esc(({ Str: "STR", Dex: "DEX", Con: "CON", Int: "INT", Wis: "WIS", Cha: "CHA" } as Record<string, string>)[k] || k)}</span><strong>${num(v)}</strong><small>${Math.floor((num(v) - 10) / 2) >= 0 ? "+" : ""}${Math.floor((num(v) - 10) / 2)}</small></button>`,
           )
           .join("")}</div>`
       : ""
-  }${["Saves", "Skills"].map((k, i) => (Array.isArray(s[k]) && (s[k] as any[]).length ? `<p class="stat-line"><b>${i ? "Perícias" : "Salvaguardas"}.</b> ${(s[k] as any[]).map((v) => esc(v.Name) + " " + (num(v.Modifier) >= 0 ? "+" : "") + num(v.Modifier)).join(", ")}</p>` : "")).join("")}${["DamageResistances", "DamageImmunities", "ConditionImmunities", "DamageVulnerabilities", "Senses", "Languages"].map((k, i) => (Array.isArray(s[k]) && (s[k] as string[]).length ? `<p class="stat-line"><b>${["Resistências", "Imunidades a dano", "Imunidades a condições", "Vulnerabilidades", "Sentidos", "Idiomas"][i]}.</b> ${esc((s[k] as string[]).join(", "))}</p>` : "")).join("")}${[
-    ["Traits", "Características"],
-    ["Actions", "Ações"],
-    ["BonusActions", "Ações bônus"],
-    ["Reactions", "Reações"],
-    ["MythicActions", "Ações míticas"],
-    ["LegendaryActions", "Ações lendárias"],
+  }${["Saves", "Skills"].map((k, i) => (Array.isArray(s[k]) && (s[k] as any[]).length ? `<p class="stat-line"><b>${i ? "Skills" : "Saving Throws"}.</b> ${(s[k] as any[]).map((v) => esc(v.Name) + " " + (num(v.Modifier) >= 0 ? "+" : "") + num(v.Modifier)).join(", ")}</p>` : "")).join("")}${["DamageResistances", "DamageImmunities", "ConditionImmunities", "DamageVulnerabilities", "Senses", "Languages"].map((k, i) => (Array.isArray(s[k]) && (s[k] as string[]).length ? `<p class="stat-line"><b>${["Resistances", "Damage Immunities", "Condition Immunities", "Vulnerabilities", "Senses", "Languages"][i]}.</b> ${esc((s[k] as string[]).join(", "))}</p>` : "")).join("")}${[
+    ["Traits", "Traits"],
+    ["Actions", "Actions"],
+    ["BonusActions", "Bonus Actions"],
+    ["Reactions", "Reactions"],
+    ["MythicActions", "Mythic Actions"],
+    ["LegendaryActions", "Legendary Actions"],
   ]
     .map(([key, label]) =>
       Array.isArray(s[key]) && (s[key] as any[]).length
         ? `<h3 class="feature-heading">${label}</h3>${(s[key] as any[]).map((f: any) => `<details class="feature" ${key === "Actions" ? "open" : ""}><summary>${esc(f.Name)}${icon("ChevronDown", 14)}</summary><p>${esc(f.Content)}</p></details>`).join("")}`
         : "",
     )
-    .join("")}${s.Description ? `<h3>Descrição</h3><p class="stat-description">${esc(s.Description)}</p>` : ""}`;
+    .join("")}${s.Description ? `<h3>Description</h3><p class="stat-description">${esc(s.Description)}</p>` : ""}`;
 }
 function renderSaved() {
-  return `<section class="saved-grid">${state.saved.length ? state.saved.map((e) => `<article class="saved-card panel"><span class="saved-icon">${icon("Layers", 22)}</span><h2>${esc(e.name)}</h2><p>${e.combatants.length} combatentes · ${e.started ? "Rodada " + e.round : "Preparação"}</p><div>${btn("load", "Abrir encontro", "ArrowUpRight", "primary", `data-id="${e.id}"`)}${btn("delete-saved", "", "Trash2", "icon-button", `data-id="${e.id}" aria-label="Excluir ${esc(e.name)}"`)}</div></article>`).join("") : `<div class="saved-empty panel">${icon("Layers", 36)}<h2>Nenhum encontro salvo</h2><p>Salve um encontro na mesa para voltar a ele quando quiser.</p>${btn("view-combat", "Voltar à mesa", "Swords", "primary")}</div>`}</section>`;
+  return `<section class="saved-grid">${state.saved.length ? state.saved.map((e) => `<article class="saved-card panel"><span class="saved-icon">${icon("Layers", 22)}</span><h2>${esc(e.name)}</h2><p>${e.combatants.length} combatants · ${e.started ? "Round " + e.round : "Preparation"}</p><div>${btn("load", "Open encounter", "ArrowUpRight", "primary", `data-id="${e.id}"`)}${btn("delete-saved", "", "Trash2", "icon-button", `data-id="${e.id}" aria-label="Delete ${esc(e.name)}"`)}</div></article>`).join("") : `<div class="saved-empty panel">${icon("Layers", 36)}<h2>No saved encounters</h2><p>Save an encounter at the table to return to it later.</p>${btn("view-combat", "Back to table", "Swords", "primary")}</div>`}</section>`;
 }
 function hpModal(c: Combatant) {
   selected = c.id;
   openModal(
-    "Pontos de vida",
-    `<div class="hp-modal-identity">${avatar(c)}<div><strong>${esc(c.name)}</strong><p>${c.hp} / ${c.maxHp} PV${c.tempHp ? " · " + c.tempHp + " temporários" : ""}</p></div></div><form id="hp-form"><label>Quantidade<input name="amount" type="number" min="0" max="999999" value="1" required autofocus></label><div class="modal-actions three"><button name="mode" value="damage" class="danger" type="submit">${icon("Swords")}Aplicar dano</button><button name="mode" value="heal" class="primary" type="submit">${icon("Heart")}Curar</button><button name="mode" value="temp" class="secondary" type="submit">+ Temporários</button></div></form>`,
+    "Hit Points",
+    `<div class="hp-modal-identity">${avatar(c)}<div><strong>${esc(c.name)}</strong><p>${c.hp} / ${c.maxHp} HP${c.tempHp ? " · " + c.tempHp + " temporary" : ""}</p></div></div><form id="hp-form"><label>Amount<input name="amount" type="number" min="0" max="999999" value="1" required autofocus></label><div class="modal-actions three"><button name="mode" value="damage" class="danger" type="submit">${icon("Swords")}Apply damage</button><button name="mode" value="heal" class="primary" type="submit">${icon("Heart")}Heal</button><button name="mode" value="temp" class="secondary" type="submit">+ Temporary</button></div></form>`,
   );
 }
 function featureFields(key: string, features: any[] = []) {
-  return `<details class="edit-features"><summary>${({ Traits: "Características", Actions: "Ações", BonusActions: "Ações bônus", Reactions: "Reações", LegendaryActions: "Ações lendárias" } as Record<string, string>)[key]}</summary><div data-feature-list="${key}">${features.map((f) => featureRow(key, f)).join("")}</div>${btn("add-feature", "Adicionar", "Plus", "text-button", `type="button" data-kind="${key}"`)}</details>`;
+  return `<details class="edit-features"><summary>${({ Traits: "Traits", Actions: "Actions", BonusActions: "Bonus Actions", Reactions: "Reactions", LegendaryActions: "Legendary Actions" } as Record<string, string>)[key]}</summary><div data-feature-list="${key}">${features.map((f) => featureRow(key, f)).join("")}</div>${btn("add-feature", "Add", "Plus", "text-button", `type="button" data-kind="${key}"`)}</details>`;
 }
 function featureRow(key: string, f: any = {}) {
-  return `<div class="feature-row"><input type="hidden" name="${key}Original" value="${esc(JSON.stringify(f))}"><div><input name="${key}Name" aria-label="Nome da ação" placeholder="Nome" value="${esc(f.Name)}">${btn("remove-feature", "", "X", "icon-button", 'type="button" aria-label="Remover ação"')}</div><textarea name="${key}Content" aria-label="Descrição da ação" placeholder="Descrição, ataque, dano ou efeito">${esc(f.Content)}</textarea></div>`;
+  return `<div class="feature-row"><input type="hidden" name="${key}Original" value="${esc(JSON.stringify(f))}"><div><input name="${key}Name" aria-label="Action name" placeholder="Name" value="${esc(f.Name)}">${btn("remove-feature", "", "X", "icon-button", 'type="button" aria-label="Remove action"')}</div><textarea name="${key}Content" aria-label="Action description" placeholder="Description, attack, damage, or effect">${esc(f.Content)}</textarea></div>`;
 }
 function formCreature(c?: Combatant, s?: StatBlock) {
   const stat = c?.stat || s;
   editingStat = stat;
   openModal(
-    c ? "Editar combatente" : s ? "Editar ficha" : "Criar combatente",
-    `<form id="creature-form" data-add="${!s && !c}" data-combatant="${c?.id || ""}" data-library="${s?.Id || ""}"><div class="form-grid"><label class="full">Nome<input name="name" value="${esc(c?.name || stat?.Name || "")}" maxlength="120" required autofocus></label><label>Lado<select name="side"><option value="enemy">Adversário</option><option value="ally" ${c?.side === "ally" || stat?.Player ? "selected" : ""}>Aliado</option></select></label><label>Tipo<input name="type" value="${esc(stat?.Type || "")}" placeholder="Humanoide, morto-vivo…"></label><label>Vida máxima<input name="hp" type="number" min="1" max="999999" value="${c?.maxHp || stat?.HP?.Value || 10}" required></label><label>Classe de armadura<input name="ac" type="number" min="0" max="999" value="${c?.ac ?? stat?.AC?.Value ?? 10}" required></label><label>Bônus de iniciativa<input name="modifier" type="number" min="-99" max="99" value="${num(stat?.InitiativeModifier)}" required></label><label>Iniciativa atual<input name="initiative" type="number" min="-99" max="999" value="${c?.initiative ?? 0}" required></label><label class="full">Descrição<textarea name="description">${esc(stat?.Description || "")}</textarea></label></div><div class="edit-abilities">${["Str", "Dex", "Con", "Int", "Wis", "Cha"].map((k, i) => `<label>${["FOR", "DES", "CON", "INT", "SAB", "CAR"][i]}<input name="ability-${k}" type="number" min="1" max="99" value="${num(stat?.Abilities?.[k], 10)}" required></label>`).join("")}</div>${["Traits", "Actions", "BonusActions", "Reactions", "LegendaryActions"].map((k) => featureFields(k, (stat?.[k] as any[]) || [])).join("")}<div class="modal-actions">${btn("close", "Cancelar", undefined, "secondary", 'type="button"')}<button type="submit" class="primary">${icon("Check")}${c || s ? "Salvar alterações" : "Criar e adicionar"}</button></div></form>`,
+    c ? "Edit combatant" : s ? "Edit stat block" : "Create combatant",
+    `<form id="creature-form" data-add="${!s && !c}" data-combatant="${c?.id || ""}" data-library="${s?.Id || ""}"><div class="form-grid"><label class="full">Name<input name="name" value="${esc(c?.name || stat?.Name || "")}" maxlength="120" required autofocus></label><label>Side<select name="side"><option value="enemy">Enemy</option><option value="ally" ${c?.side === "ally" || stat?.Player ? "selected" : ""}>Ally</option></select></label><label>Type<input name="type" value="${esc(stat?.Type || "")}" placeholder="Humanoid, undead…"></label><label>Max HP<input name="hp" type="number" min="1" max="999999" value="${c?.maxHp || stat?.HP?.Value || 10}" required></label><label>Armor Class<input name="ac" type="number" min="0" max="999" value="${c?.ac ?? stat?.AC?.Value ?? 10}" required></label><label>Initiative bonus<input name="modifier" type="number" min="-99" max="99" value="${num(stat?.InitiativeModifier)}" required></label><label>Current initiative<input name="initiative" type="number" min="-99" max="999" value="${c?.initiative ?? 0}" required></label><label class="full">Description<textarea name="description">${esc(stat?.Description || "")}</textarea></label></div><div class="edit-abilities">${["Str", "Dex", "Con", "Int", "Wis", "Cha"].map((k, i) => `<label>${["STR", "DEX", "CON", "INT", "WIS", "CHA"][i]}<input name="ability-${k}" type="number" min="1" max="99" value="${num(stat?.Abilities?.[k], 10)}" required></label>`).join("")}</div>${["Traits", "Actions", "BonusActions", "Reactions", "LegendaryActions"].map((k) => featureFields(k, (stat?.[k] as any[]) || [])).join("")}<div class="modal-actions">${btn("close", "Cancel", undefined, "secondary", 'type="button"')}<button type="submit" class="primary">${icon("Check")}${c || s ? "Save changes" : "Create and add"}</button></div></form>`,
   );
 }
 function formSpell(s?: Spell) {
   openModal(
-    s ? "Editar magia" : "Criar magia",
-    `<form id="spell-form" data-id="${s && !s.Id.startsWith("spells-") ? esc(s.Id) : ""}"><div class="form-grid"><label class="full">Nome<input name="name" value="${esc(s?.Name)}" required maxlength="120"></label><label>Nível<input name="level" type="number" min="0" max="9" value="${s?.Level || 0}" required></label><label>Escola<input name="school" value="${esc(s?.School)}" required></label><label>Tempo de conjuração<input name="casting" value="${esc(s?.CastingTime || "1 ação")}" required></label><label>Alcance<input name="range" value="${esc(s?.Range)}" required></label><label>Duração<input name="duration" value="${esc(s?.Duration)}" required></label><label>Componentes<input name="components" value="${esc(s?.Components)}"></label><label class="full">Descrição<textarea name="description" rows="7" required>${esc(s?.Description)}</textarea></label></div><div class="modal-actions"><button class="primary">Salvar magia</button></div></form>`,
+    s ? "Edit spell" : "Create spell",
+    `<form id="spell-form" data-id="${s && !s.Id.startsWith("spells-") ? esc(s.Id) : ""}"><div class="form-grid"><label class="full">Name<input name="name" value="${esc(s?.Name)}" required maxlength="120"></label><label>Level<input name="level" type="number" min="0" max="9" value="${s?.Level || 0}" required></label><label>School<input name="school" value="${esc(s?.School)}" required></label><label>Casting time<input name="casting" value="${esc(s?.CastingTime || "1 action")}" required></label><label>Range<input name="range" value="${esc(s?.Range)}" required></label><label>Duration<input name="duration" value="${esc(s?.Duration)}" required></label><label>Components<input name="components" value="${esc(s?.Components)}"></label><label class="full">Description<textarea name="description" rows="7" required>${esc(s?.Description)}</textarea></label></div><div class="modal-actions"><button class="primary">Save spell</button></div></form>`,
   );
 }
 function previewModal(s: StatBlock | Spell) {
@@ -587,17 +587,17 @@ function previewModal(s: StatBlock | Spell) {
   openModal(
     esc(s.Name),
     spell
-      ? `<p class="muted">Nível ${num(s.Level)} · ${esc(s.School)}</p><div class="spell-meta">${[
-          ["Conjuração", s.CastingTime],
-          ["Alcance", s.Range],
-          ["Duração", s.Duration],
-          ["Componentes", s.Components],
+      ? `<p class="muted">Level ${num(s.Level)} · ${esc(s.School)}</p><div class="spell-meta">${[
+          ["Casting", s.CastingTime],
+          ["Range", s.Range],
+          ["Duration", s.Duration],
+          ["Components", s.Components],
         ]
           .map(([k, v]) => `<div><b>${esc(k)}</b><span>${esc(v)}</span></div>`)
           .join(
             "",
-          )}</div><p class="spell-description">${esc(s.Description)}</p><div class="modal-actions">${btn("edit-spell", state.spells.some((x) => x.Id === s.Id) ? "Editar magia" : "Criar cópia", "Pencil", "secondary")}</div>`
-      : `<p class="muted">${esc(s.Type)}</p><div class="preview-stats"><span>PV <b>${num((s as StatBlock).HP?.Value, 1)}</b></span><span>CA <b>${num((s as StatBlock).AC?.Value, 10)}</b></span><span>ND <b>${esc(s.Challenge || "—")}</b></span></div>${renderStat(s as StatBlock)}<div class="modal-actions">${btn("edit-library", state.library.some((x) => x.Id === s.Id) ? "Editar ficha" : "Criar cópia", "Pencil", "secondary")}${btn("add-preview", "Adicionar ao encontro", "Plus", "primary")}</div>`,
+          )}</div><p class="spell-description">${esc(s.Description)}</p><div class="modal-actions">${btn("edit-spell", state.spells.some((x) => x.Id === s.Id) ? "Edit spell" : "Create copy", "Pencil", "secondary")}</div>`
+      : `<p class="muted">${esc(s.Type)}</p><div class="preview-stats"><span>HP <b>${num((s as StatBlock).HP?.Value, 1)}</b></span><span>AC <b>${num((s as StatBlock).AC?.Value, 10)}</b></span><span>CR <b>${esc(s.Challenge || "—")}</b></span></div>${renderStat(s as StatBlock)}<div class="modal-actions">${btn("edit-library", state.library.some((x) => x.Id === s.Id) ? "Edit stat block" : "Create copy", "Pencil", "secondary")}${btn("add-preview", "Add to encounter", "Plus", "primary")}</div>`,
     true,
   );
 }
@@ -608,15 +608,15 @@ function addStat(s: StatBlock) {
     c.notes = String(s.ImportedNotes || "");
     state.encounter.combatants.push(c);
     selected = c.id;
-  }, `${s.Name} entrou no encontro.`);
-  toast(`${s.Name} adicionado.`);
+  }, `${s.Name} joined the encounter.`);
+  toast(`${s.Name} added.`);
 }
 function settings() {
   openModal(
-    "Dados e backups",
-    `<div class="settings-section"><h3>${icon("Database")} Armazenamento local</h3><p>Encontro, fichas, magias e notas são salvos neste navegador. Exporte backups para levar sua campanha a outro dispositivo.</p><div class="settings-metrics"><div><b>${state.library.length}</b><span>fichas pessoais</span></div><div><b>${base.length}</b><span>criaturas SRD</span></div><div><b>${allSpells().length}</b><span>magias</span></div></div><div class="settings-actions">${btn("export", "Exportar backup", "Download", "primary")}${btn("import", "Importar JSON", "Upload", "secondary")}</div><input type="file" id="import-file" accept=".json,application/json" hidden><p class="small muted">Aceita backups RoundKeep, além de exportações Improved Initiative. A importação é validada antes de alterar seus dados.</p></div><div class="settings-section"><h3>Backup de origem</h3><p>${state.sourceBackup ? "O backup completo do Improved Initiative foi preservado, inclusive configurações e campos de origem." : "Nenhum backup do Improved Initiative importado."}</p>${state.sourceBackup ? btn("export-original", "Baixar backup original", "Download", "secondary") : ""}</div><div class="settings-section"><h3>Conteúdo e créditos</h3><p>Interface e motor de combate próprios. Criaturas SRD 5.2 (2024) via Open5e, sob CC BY 4.0. Magias de regras básicas distribuídas pelo projeto Improved Initiative, de Evan Bailey. Textos de regras mantidos no idioma da fonte.</p><a href="/credits.html" target="_blank" rel="noopener">Créditos e licenças</a><br><a href="/SRD-OGL_V1.1.pdf" target="_blank" rel="noopener">Open Gaming License / SRD ${icon("ArrowUpRight", 14)}</a></div>`,
+    "Data and backups",
+    `<div class="settings-section"><h3>${icon("Database")} Local storage</h3><p>Encounters, stat blocks, spells, and notes are saved in this browser. Export backups to move your campaign to another device.</p><div class="settings-metrics"><div><b>${state.library.length}</b><span>personal stat blocks</span></div><div><b>${base.length}</b><span>SRD creatures</span></div><div><b>${allSpells().length}</b><span>spells</span></div></div><div class="settings-actions">${btn("export", "Export backup", "Download", "primary")}${btn("import", "Import JSON", "Upload", "secondary")}</div><input type="file" id="import-file" accept=".json,application/json" hidden><p class="small muted">Accepts RoundKeep backups and Improved Initiative exports. Import is validated before changing your data.</p></div><div class="settings-section"><h3>Source backup</h3><p>${state.sourceBackup ? "The full Improved Initiative backup was preserved, including settings and source fields." : "No Improved Initiative backup imported."}</p>${state.sourceBackup ? btn("export-original", "Download original backup", "Download", "secondary") : ""}</div><div class="settings-section"><h3>Content and credits</h3><p>Custom interface and combat engine. SRD 5.2 (2024) creatures via Open5e, under CC BY 4.0. Basic rules spells distributed by Evan Bailey's Improved Initiative project. Rule text kept in the source language.</p><a href="/credits.html" target="_blank" rel="noopener">Credits and licenses</a><br><a href="/SRD-OGL_V1.1.pdf" target="_blank" rel="noopener">Open Gaming License / SRD ${icon("ArrowUpRight", 14)}</a></div>`,
   );
-  const appearance = `<div class="settings-section theme-section"><h3>${icon("Settings2")} Aparência</h3><p>Escolha claro, escuro ou acompanhe automaticamente o tema do sistema operacional.</p><label class="theme-control">Tema da interface<select id="theme-preference" aria-label="Tema da interface"><option value="system" ${themePreference === "system" ? "selected" : ""}>Usar tema do sistema</option><option value="light" ${themePreference === "light" ? "selected" : ""}>Claro</option><option value="dark" ${themePreference === "dark" ? "selected" : ""}>Escuro</option></select></label></div>`;
+  const appearance = `<div class="settings-section theme-section"><h3>${icon("Settings2")} Appearance</h3><p>Choose light, dark, or follow your operating system theme automatically.</p><label class="theme-control">Interface theme<select id="theme-preference" aria-label="Interface theme"><option value="system" ${themePreference === "system" ? "selected" : ""}>Use system theme</option><option value="light" ${themePreference === "light" ? "selected" : ""}>Light</option><option value="dark" ${themePreference === "dark" ? "selected" : ""}>Dark</option></select></label></div>`;
   const firstSection = modal.querySelector(".settings-section");
   if (firstSection) firstSection.insertAdjacentHTML("beforebegin", appearance);
   else modal.insertAdjacentHTML("beforeend", appearance);
@@ -629,7 +629,7 @@ function download(data: unknown, name: string) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
-  toast("Backup exportado.");
+  toast("Backup exported.");
 }
 async function action(kind: string, el: HTMLElement) {
   const e = state.encounter,
@@ -705,12 +705,12 @@ async function action(kind: string, el: HTMLElement) {
       }
       break;
     case "next":
-      change(() => advance(e), e.started ? "Próximo turno." : "Combate iniciado.");
+      change(() => advance(e), e.started ? "Next turn." : "Combat started.");
       break;
     case "end-combat":
       openModal(
-        "Encerrar combate?",
-        `<p>A ordem, os pontos de vida e as condições serão mantidos para sua próxima preparação.</p><div class="modal-actions">${btn("close", "Continuar combate", undefined, "secondary")}${btn("confirm-end", "Encerrar combate", "Flag", "primary")}</div>`,
+        "End combat?",
+        `<p>Initiative order, hit points, and conditions will be kept for your next preparation.</p><div class="modal-actions">${btn("close", "Continue combat", undefined, "secondary")}${btn("confirm-end", "End combat", "Flag", "primary")}</div>`,
       );
       break;
     case "confirm-end":
@@ -719,16 +719,16 @@ async function action(kind: string, el: HTMLElement) {
         e.started = false;
         e.round = 0;
         e.activeId = null;
-      }, "Combate encerrado.");
+      }, "Combat ended.");
       break;
     case "previous":
-      change(() => advance(e, -1), "Voltou ao turno anterior.");
+      change(() => advance(e, -1), "Returned to previous turn.");
       break;
     case "roll-initiative":
       change(() => {
         for (const c of e.combatants) c.initiative = roll("1d20").total + num(c.stat.InitiativeModifier);
-      }, "Iniciativas roladas.");
-      toast("Iniciativas roladas.");
+      }, "Initiative rolled.");
+      toast("Initiative rolled.");
       break;
     case "undo": {
       const previous = history.pop();
@@ -736,7 +736,7 @@ async function action(kind: string, el: HTMLElement) {
         state.encounter = previous;
         persist();
         render();
-        toast("Última ação desfeita.");
+        toast("Last action undone.");
       }
       break;
     }
@@ -752,8 +752,8 @@ async function action(kind: string, el: HTMLElement) {
     case "conditions":
       if (c)
         openModal(
-          "Condições",
-          `<div class="condition-picker">${["Amedrontado", "Agarrado", "Atordoado", "Caído", "Cego", "Enfeitiçado", "Envenenado", "Impedido", "Incapacitado", "Inconsciente", "Invisível", "Paralisado", "Petrificado", "Surdo", "Concentração", "Exaustão"].map((x) => btn("toggle-condition", esc(x), c.conditions.includes(x) ? "Check" : "Plus", c.conditions.includes(x) ? "selected" : "", `data-condition="${x}" aria-pressed="${c.conditions.includes(x)}"`)).join("")}</div><form id="condition-form"><label>Condição personalizada<input name="condition" maxlength="60" placeholder="Ex.: Marca do caçador" required></label><button class="primary">Adicionar</button></form>`,
+          "Conditions",
+          `<div class="condition-picker">${["Frightened", "Grappled", "Stunned", "Prone", "Blinded", "Charmed", "Poisoned", "Restrained", "Incapacitated", "Unconscious", "Invisible", "Paralyzed", "Petrified", "Deafened", "Concentration", "Exhaustion"].map((x) => btn("toggle-condition", esc(x), c.conditions.includes(x) ? "Check" : "Plus", c.conditions.includes(x) ? "selected" : "", `data-condition="${x}" aria-pressed="${c.conditions.includes(x)}"`)).join("")}</div><form id="condition-form"><label>Custom condition<input name="condition" maxlength="60" placeholder="e.g. Hunter's mark" required></label><button class="primary">Add</button></form>`,
         );
       break;
     case "toggle-condition":
@@ -794,7 +794,7 @@ async function action(kind: string, el: HTMLElement) {
         selected = c.id;
         openModal(
           esc(c.name),
-          `<div class="menu-actions">${btn("edit", "Editar combatente", "Pencil", "secondary")}${btn("hp", "Dano, cura e vida temporária", "Heart", "secondary")}${btn("conditions", "Gerenciar condições", "Sparkles", "secondary")}${btn("duplicate", "Duplicar combatente", "Copy", "secondary")}${btn("hide", c.hidden ? "Mostrar aos jogadores" : "Ocultar dos jogadores", c.hidden ? "Eye" : "EyeOff", "secondary")}${btn("remove", "Remover do encontro", "Trash2", "danger")}</div>`,
+          `<div class="menu-actions">${btn("edit", "Edit combatant", "Pencil", "secondary")}${btn("hp", "Damage, healing, and temp HP", "Heart", "secondary")}${btn("conditions", "Manage conditions", "Sparkles", "secondary")}${btn("duplicate", "Duplicate combatant", "Copy", "secondary")}${btn("hide", c.hidden ? "Show to players" : "Hide from players", c.hidden ? "Eye" : "EyeOff", "secondary")}${btn("remove", "Remove from encounter", "Trash2", "danger")}</div>`,
         );
       }
       break;
@@ -807,7 +807,7 @@ async function action(kind: string, el: HTMLElement) {
           copy.name += " (2)";
           e.combatants.push(copy);
           selected = copy.id;
-        }, `${c.name} duplicado.`);
+        }, `${c.name} duplicated.`);
       }
       break;
     case "hide":
@@ -822,13 +822,13 @@ async function action(kind: string, el: HTMLElement) {
         change(() => {
           removeCombatant(e, c.id);
           selected = "";
-        }, `${c.name} removido do encontro.`);
+        }, `${c.name} removed from encounter.`);
       }
       break;
     case "add-party": {
       const party = state.library.filter((s) => s.Player && !e.combatants.some((c) => c.stat.Id === s.Id));
       if (!party.length) {
-        toast("Nenhum herói novo para adicionar. Crie uma ficha de aliado.");
+        toast("No new heroes to add. Create an ally stat block.");
         break;
       }
       change(() => {
@@ -839,19 +839,19 @@ async function action(kind: string, el: HTMLElement) {
           e.combatants.push(c);
         }
         selected = e.combatants[0].id;
-      }, "Grupo adicionado ao encontro.");
+      }, "Party added to encounter.");
       break;
     }
     case "rename":
       openModal(
-        "Nome do encontro",
-        `<form id="rename-form"><label>Nome<input name="name" value="${esc(e.name)}" maxlength="120" required autofocus></label><div class="modal-actions"><button class="primary">Salvar nome</button></div></form>`,
+        "Encounter name",
+        `<form id="rename-form"><label>Name<input name="name" value="${esc(e.name)}" maxlength="120" required autofocus></label><div class="modal-actions"><button class="primary">Save name</button></div></form>`,
       );
       break;
     case "notes":
       openModal(
-        "Notas do mestre",
-        `<form id="notes-form"><p class="muted">Visíveis apenas na sua mesa.</p><textarea name="notes" rows="9" placeholder="Prepare o cenário, os objetivos e as surpresas…">${esc(e.notes)}</textarea><div class="modal-actions"><button class="primary">Salvar notas</button></div></form>`,
+        "DM notes",
+        `<form id="notes-form"><p class="muted">Visible only at your table.</p><textarea name="notes" rows="9" placeholder="Prepare the scene, objectives, and surprises…">${esc(e.notes)}</textarea><div class="modal-actions"><button class="primary">Save notes</button></div></form>`,
       );
       break;
     case "save": {
@@ -861,13 +861,13 @@ async function action(kind: string, el: HTMLElement) {
       else state.saved.push(copy);
       persist();
       render();
-      toast("Encontro salvo na sua coleção.");
+      toast("Encounter saved to your collection.");
       break;
     }
     case "new":
       openModal(
-        "Um novo encontro",
-        `<p>O encontro atual será salvo na sua coleção antes de abrir a nova mesa.</p><form id="new-form"><label>Nome<input name="name" placeholder="Ex.: Emboscada na estrada" value="Novo encontro" maxlength="120" required></label><div class="modal-actions"><button class="primary">Criar encontro</button></div></form>`,
+        "A new encounter",
+        `<p>The current encounter will be saved to your collection before opening the new table.</p><form id="new-form"><label>Name<input name="name" placeholder="e.g. Roadside ambush" value="New encounter" maxlength="120" required></label><div class="modal-actions"><button class="primary">Create encounter</button></div></form>`,
       );
       break;
     case "load": {
@@ -888,8 +888,8 @@ async function action(kind: string, el: HTMLElement) {
     }
     case "delete-saved":
       openModal(
-        "Excluir encontro salvo?",
-        `<p>O encontro em andamento não será alterado. Exporte um backup se quiser preservar esta cópia.</p><div class="modal-actions">${btn("close", "Cancelar", undefined, "secondary")}${btn("confirm-delete-saved", "Excluir cópia salva", "Trash2", "danger", `data-id="${el.dataset.id}"`)}</div>`,
+        "Delete saved encounter?",
+        `<p>The encounter in progress will not be changed. Export a backup if you want to keep this copy.</p><div class="modal-actions">${btn("close", "Cancel", undefined, "secondary")}${btn("confirm-delete-saved", "Delete saved copy", "Trash2", "danger", `data-id="${el.dataset.id}"`)}</div>`,
       );
       break;
     case "confirm-delete-saved":
@@ -900,8 +900,8 @@ async function action(kind: string, el: HTMLElement) {
       break;
     case "dice":
       openModal(
-        "Rolar dados",
-        `<form id="dice-form"><label>Rolagem<input name="expression" value="1d20" placeholder="2d6+3" required autofocus></label><div class="dice-presets">${[4, 6, 8, 10, 12, 20, 100].map((n) => btn("dice-preset", "d" + n, undefined, "secondary", `type="button" data-die="${n}"`)).join("")}</div><button class="primary" type="submit">${icon("Dices")} Rolar dados</button></form><div id="dice-result" aria-live="polite" class="dice-result"></div>`,
+        "Roll dice",
+        `<form id="dice-form"><label>Roll<input name="expression" value="1d20" placeholder="2d6+3" required autofocus></label><div class="dice-presets">${[4, 6, 8, 10, 12, 20, 100].map((n) => btn("dice-preset", "d" + n, undefined, "secondary", `type="button" data-die="${n}"`)).join("")}</div><button class="primary" type="submit">${icon("Dices")} Roll dice</button></form><div id="dice-result" aria-live="polite" class="dice-result"></div>`,
       );
       break;
     case "dice-preset":
@@ -935,13 +935,13 @@ async function action(kind: string, el: HTMLElement) {
         persist();
         closeModal();
         render();
-        toast("Importação concluída.");
+        toast("Import complete.");
       }
       break;
     case "help":
       openModal(
-        "Sua mesa, sem complicação",
-        `<div class="help-list"><p><kbd>⌘ K</kbd> Busca e ações rápidas</p><p><kbd>N</kbd> Avançar turno</p><p><kbd>/</kbd> Buscar na biblioteca</p><p><kbd>D</kbd> Abrir rolagem de dados</p><p><kbd>Ctrl / ⌘ + Z</kbd> Desfazer uma ação de combate</p><p>Clique no valor de iniciativa para editá-lo. Clique na vida para aplicar dano ou cura. A visão dos jogadores oculta notas, CA e vida exata.</p><p>A janela dos jogadores sincroniza neste mesmo navegador e dispositivo. Não é um link remoto de sessão.</p></div>`,
+        "Your table, simplified",
+        `<div class="help-list"><p><kbd>⌘ K</kbd> Search and quick actions</p><p><kbd>N</kbd> Advance turn</p><p><kbd>/</kbd> Search library</p><p><kbd>D</kbd> Open dice roller</p><p><kbd>Ctrl / ⌘ + Z</kbd> Undo a combat action</p><p>Click initiative to edit it. Click HP to apply damage or healing. Player view hides notes, AC, and exact HP.</p><p>The player window syncs in this same browser and device. It is not a remote session link.</p></div>`,
       );
       break;
     case "player":
@@ -949,13 +949,13 @@ async function action(kind: string, el: HTMLElement) {
       break;
     case "log":
       openModal(
-        "Histórico do encontro",
-        `<ol class="log-list">${e.log.length ? e.log.map((x) => `<li>${esc(x)}</li>`).join("") : "<li>Ainda não há ações registradas.</li>"}</ol>`,
+        "Encounter history",
+        `<ol class="log-list">${e.log.length ? e.log.map((x) => `<li>${esc(x)}</li>`).join("") : "<li>No actions recorded yet.</li>"}</ol>`,
       );
       break;
     case "demo":
       change(() => {
-        e.name = "Emboscada na estrada";
+        e.name = "Roadside ambush";
         for (const name of ["Goblin", "Wolf"]) {
           const s = base.find((x) => x.Name === name || x.Name.startsWith(name + " "));
           if (s) {
@@ -967,8 +967,8 @@ async function action(kind: string, el: HTMLElement) {
         const hero = createCombatant(
           {
             Id: "demo-hero",
-            Name: "Aria, a patrulheira",
-            Type: "Elfa · Patrulheira",
+            Name: "Aria, the ranger",
+            Type: "Elf · Ranger",
             HP: { Value: 32 },
             AC: { Value: 15 },
             InitiativeModifier: 3,
@@ -979,7 +979,7 @@ async function action(kind: string, el: HTMLElement) {
         hero.initiative = 18;
         e.combatants.push(hero);
         selected = hero.id;
-      }, "Demonstração adicionada.");
+      }, "Demo added.");
       break;
   }
 }
@@ -998,7 +998,7 @@ document.addEventListener("click", (event) => {
   const skipBusy = el.dataset.action === "open-command";
   if (!skipBusy) el.setAttribute("aria-busy", "true");
   Promise.resolve(action(el.dataset.action!, el))
-    .catch((err) => toast(err.message || "Não foi possível concluir a ação."))
+    .catch((err) => toast(err.message || "Could not complete the action."))
     .finally(() => el.removeAttribute("aria-busy"));
 });
 document.addEventListener("input", (event) => {
@@ -1019,8 +1019,8 @@ document.addEventListener("change", async (event) => {
       setThemePreference(el.value as ThemePreference);
       toast(
         el.value === "system"
-          ? "Tema sincronizado com o sistema."
-          : `Tema ${el.value === "dark" ? "escuro" : "claro"} aplicado.`,
+          ? "Theme synced with system."
+          : `${el.value === "dark" ? "Dark" : "Light"} theme applied.`,
       );
     }
     if (el.id === "source") {
@@ -1040,14 +1040,14 @@ document.addEventListener("change", async (event) => {
     }
     if (el.id === "import-file" && el.files?.[0]) {
       const file = el.files[0];
-      if (file.size > 20_000_000) throw new Error("O arquivo deve ter menos de 20 MB.");
+      if (file.size > 20_000_000) throw new Error("File must be under 20 MB.");
       const raw = JSON.parse(await file.text());
       if (raw?.version === 1) pendingImport = validateState(raw);
       else {
-        if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Formato não reconhecido.");
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Unrecognized format.");
         const imported = importOriginal(raw);
         if (!imported.library.length && !imported.spells.length && !imported.saved.length && !imported.encounter)
-          throw new Error("Nenhum dado compatível encontrado.");
+          throw new Error("No compatible data found.");
         pendingImport = structuredClone(state);
         const byId = new Map(pendingImport.library.map((s) => [s.Id, s]));
         imported.library.forEach((s) => byId.set(s.Id, s));
@@ -1066,8 +1066,8 @@ document.addEventListener("change", async (event) => {
       }
       closeModal();
       openModal(
-        "Revisar importação",
-        `<p>O arquivo contém ${pendingImport.library.length} fichas pessoais, ${pendingImport.spells.length} magias pessoais e ${pendingImport.saved.length} encontros salvos.</p><p>Exporte a versão atual antes de confirmar caso queira mantê-la.</p><div class="modal-actions">${btn("export", "Backup atual", "Download", "secondary")}${btn("confirm-import", "Confirmar importação", "Check", "primary")}</div>`,
+        "Review import",
+        `<p>The file contains ${pendingImport.library.length} personal stat blocks, ${pendingImport.spells.length} personal spells, and ${pendingImport.saved.length} saved encounters.</p><p>Export the current version before confirming if you want to keep it.</p><div class="modal-actions">${btn("export", "Current backup", "Download", "secondary")}${btn("confirm-import", "Confirm import", "Check", "primary")}</div>`,
       );
     }
   } catch (err) {
@@ -1092,16 +1092,16 @@ document.addEventListener("submit", (event) => {
           Duration: value("duration"),
           Components: value("components"),
           Description: value("description"),
-          Source: "Minha biblioteca",
+          Source: "My library",
         };
-        if (!spell.Name) throw new Error("Informe um nome.");
+        if (!spell.Name) throw new Error("Enter a name.");
         const index = state.spells.findIndex((s) => s.Id === spell.Id);
         if (index >= 0) state.spells[index] = spell;
         else state.spells.push(spell);
         closeModal();
         persist();
         render();
-        toast("Magia salva.");
+        toast("Spell saved.");
         break;
       }
       case "hp-form": {
@@ -1113,7 +1113,7 @@ document.addEventListener("submit", (event) => {
         closeModal();
         change(
           () => applyHP(c, amount, mode),
-          `${c.name}: ${amount} ${mode === "damage" ? "de dano" : mode === "heal" ? "de cura" : "PV temporários"}.`,
+          `${c.name}: ${amount} ${mode === "damage" ? "damage" : mode === "heal" ? "healing" : "temporary HP"}.`,
         );
         break;
       }
@@ -1131,7 +1131,7 @@ document.addEventListener("submit", (event) => {
           Description: value("description"),
           Player: value("side") === "ally" ? "player" : "",
         };
-        if (!stat.Name) throw new Error("Informe um nome.");
+        if (!stat.Name) throw new Error("Enter a name.");
         stat.Abilities = Object.fromEntries(
           ["Str", "Dex", "Con", "Int", "Wis", "Cha"].map((k) => [k, num(value("ability-" + k), 10)]),
         );
@@ -1168,19 +1168,19 @@ document.addEventListener("submit", (event) => {
               selected = fresh.id;
             }
           }
-        }, `${stat.Name}: ficha salva.`);
+        }, `${stat.Name}: stat block saved.`);
         break;
       }
       case "rename-form": {
         const name = value("name").trim();
-        if (!name) throw new Error("Informe um nome.");
+        if (!name) throw new Error("Enter a name.");
         closeModal();
         change(() => (state.encounter.name = name));
         break;
       }
       case "new-form": {
         const name = value("name").trim();
-        if (!name) throw new Error("Informe um nome.");
+        if (!name) throw new Error("Enter a name.");
         const idx = state.saved.findIndex((s) => s.id === state.encounter.id);
         if (idx >= 0) state.saved[idx] = structuredClone(state.encounter);
         else state.saved.push(structuredClone(state.encounter));
@@ -1277,12 +1277,12 @@ command.addEventListener("mousemove", (event) => {
 window.addEventListener("online", () => render());
 window.addEventListener("offline", () => render());
 function renderPlayer(p: any) {
-  app.innerHTML = `<main class="player-screen"><div class="wordmark">ROUNDKEEP<span>Visão dos jogadores</span></div><p class="muted">${p.round ? "Rodada " + p.round : "Preparação"}</p><h1>${esc(p.name)}</h1><div class="player-list">${p.combatants.map((c: any) => `<article class="player-card ${c.id === p.activeId ? "current" : ""}"><span class="player-initiative">${num(c.initiative)}</span><div><h2>${esc(c.name)}</h2><p>${esc(c.health)}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}</p></div>${c.id === p.activeId ? '<span class="turn-label">Turno atual</span>' : ""}</article>`).join("") || "<p>Aguardando os combatentes…</p>"}</div><p class="muted">Sincronização local · mantenha a mesa do mestre aberta neste navegador.</p></main>`;
+  app.innerHTML = `<main class="player-screen"><div class="wordmark">ROUNDKEEP<span>Player view</span></div><p class="muted">${p.round ? "Round " + p.round : "Preparation"}</p><h1>${esc(p.name)}</h1><div class="player-list">${p.combatants.map((c: any) => `<article class="player-card ${c.id === p.activeId ? "current" : ""}"><span class="player-initiative">${num(c.initiative)}</span><div><h2>${esc(c.name)}</h2><p>${esc(c.health)}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}</p></div>${c.id === p.activeId ? '<span class="turn-label">Current turn</span>' : ""}</article>`).join("") || "<p>Waiting for combatants…</p>"}</div><p class="muted">Local sync · keep the DM table open in this browser.</p></main>`;
 }
 async function init() {
   document.documentElement.classList.add("is-loading");
   if (playerMode) {
-    app.innerHTML = '<div class="boot">ROUNDKEEP<br><small>Aguardando a mesa do mestre…</small></div>';
+    app.innerHTML = '<div class="boot">ROUNDKEEP<br><small>Waiting for the DM table…</small></div>';
     channel.onmessage = (event) => {
       if (event.data.type === "state") renderPlayer(event.data.data);
     };
@@ -1297,14 +1297,14 @@ async function init() {
     stored = await get<State>("state");
   } catch {
     app.innerHTML =
-      '<div class="boot">Armazenamento indisponível.<small>Seus dados não foram alterados. Reabra esta página quando o navegador permitir o acesso.</small></div>';
+      '<div class="boot">Storage unavailable.<small>Your data was not changed. Reopen this page when the browser allows access.</small></div>';
     return;
   }
   if (stored) {
     try {
       state = validateState(stored);
     } catch {
-      app.innerHTML = `<div class="boot">Seu backup precisa de atenção.<small>Os dados existentes foram preservados. Exporte-os antes de tentar recuperar.</small><button id="recover-backup" class="primary">Baixar dados para recuperação</button></div>`;
+      app.innerHTML = `<div class="boot">Your backup needs attention.<small>Existing data was preserved. Export it before attempting recovery.</small><button id="recover-backup" class="primary">Download data for recovery</button></div>`;
       document
         .querySelector("#recover-backup")!
         .addEventListener("click", () => download(stored, "roundkeep-recovery.json"));
@@ -1330,7 +1330,7 @@ async function init() {
         state.saved = imported.saved;
         if (Object.keys(raw).length) state.sourceBackup = raw;
         if (imported.encounter) state.encounter = imported.encounter;
-        state.encounter.name = "Novo encontro";
+        state.encounter.name = "New encounter";
       }
     } catch {}
   }
@@ -1351,16 +1351,16 @@ async function init() {
   render();
   persist();
   if (result.some((r) => r.status === "rejected"))
-    toast("Parte do catálogo não carregou. Suas fichas pessoais continuam disponíveis.");
+    toast("Part of the catalogue failed to load. Your personal stat blocks remain available.");
   if (import.meta.env.PROD && "serviceWorker" in navigator)
-    navigator.serviceWorker.register("/sw.js").catch(() => toast("Cache offline indisponível neste navegador."));
+    navigator.serviceWorker.register("/sw.js").catch(() => toast("Offline cache unavailable in this browser."));
 }
 async function start() {
   if (playerMode || !navigator.locks) return init();
   await navigator.locks.request("roundkeep-master", { ifAvailable: true }, async (lock) => {
     if (!lock) {
       app.innerHTML =
-        '<div class="boot">Sua mesa já está aberta.<small>Use a primeira aba para editar. Isso evita alterações conflitantes.</small><a class="primary" href="/?player">Abrir visão dos jogadores</a><button class="secondary" onclick="location.reload()">Tentar novamente</button></div>';
+        '<div class="boot">Your table is already open.<small>Use the first tab to edit. This prevents conflicting changes.</small><a class="primary" href="/?player">Open player view</a><button class="secondary" onclick="location.reload()">Try again</button></div>';
       return;
     }
     const lifetime = new Promise<void>((resolve) =>
@@ -1374,5 +1374,5 @@ window.addEventListener("pageshow", (event) => {
   if (event.persisted && !playerMode) location.reload();
 });
 start().catch((err) => {
-  app.innerHTML = `<div class="boot">Não foi possível abrir a mesa.<br><small>${esc(err.message)}</small><button onclick="location.reload()">Tentar novamente</button></div>`;
+  app.innerHTML = `<div class="boot">Could not open the table.<br><small>${esc(err.message)}</small><button onclick="location.reload()">Try again</button></div>`;
 });

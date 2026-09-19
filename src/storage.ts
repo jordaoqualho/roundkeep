@@ -64,9 +64,9 @@ export async function catalogue<T>(name: string): Promise<T[]> {
   } catch {}
   if (cached) return cached;
   const r = await fetch("/data/" + name + ".json?v=2026-09-18-v2");
-  if (!r.ok) throw new Error("Não foi possível carregar a biblioteca.");
+  if (!r.ok) throw new Error("Could not load the library.");
   const data = await r.json();
-  if (!Array.isArray(data)) throw new Error("Catálogo inválido.");
+  if (!Array.isArray(data)) throw new Error("Invalid catalog.");
   try {
     await put(key, data);
   } catch {}

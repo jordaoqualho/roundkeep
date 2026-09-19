@@ -76,7 +76,7 @@ export const num = (v: unknown, fallback = 0) =>
   Number.isFinite(Number(v)) ? Number(v) : fallback;
 export const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
-export function emptyEncounter(name = "Novo encontro"): Encounter {
+export function emptyEncounter(name = "New encounter"): Encounter {
   return {
     id: id(),
     name,
@@ -115,7 +115,7 @@ export function applyHP(
   mode: "damage" | "heal" | "temp",
 ) {
   if (!Number.isFinite(amount) || amount < 0)
-    throw new Error("Informe um valor positivo.");
+    throw new Error("Enter a positive value.");
   amount = Math.floor(amount);
   if (mode === "temp") {
     c.tempHp = Math.max(c.tempHp, amount);
@@ -184,12 +184,12 @@ export function roll(
   const m = expression
     .replace(/\s/g, "")
     .match(/^(\d{0,3})d(\d{1,4})([+-]\d{1,4})?$/i);
-  if (!m) throw new Error("Use dados como 1d20+3 ou 2d6.");
+  if (!m) throw new Error("Use dice like 1d20+3 or 2d6.");
   const count = Number(m[1] || 1),
     sides = Number(m[2]),
     modifier = Number(m[3] || 0);
   if (count < 1 || count > 100 || sides < 2 || sides > 1000)
-    throw new Error("Use de 1 a 100 dados, com 2 a 1.000 faces.");
+    throw new Error("Use 1 to 100 dice with 2 to 1,000 sides.");
   const dice = Array.from(
     { length: count },
     () => Math.floor(random() * sides) + 1,
@@ -241,7 +241,7 @@ export function importOriginal(raw: Record<string, unknown>) {
     if (key.startsWith("Spells.") && v.Name)
       spells.push({ ...v, Id: v.Id || key });
     if (key.includes("SavedEncounters.") && Array.isArray(v.Combatants)) {
-      const e = emptyEncounter(v.Name || "Encontro importado");
+      const e = emptyEncounter(v.Name || "Imported encounter");
       e.notes = v.Notes || "";
       e.combatants = v.Combatants.filter((x: any) => x.StatBlock?.Name).map(
         (x: any) => ({
@@ -276,7 +276,7 @@ export function importOriginal(raw: Record<string, unknown>) {
 }
 function validateStat(s: StatBlock) {
   if (!s || typeof s.Name !== "string" || typeof s.Id !== "string")
-    throw new Error("Ficha inválida.");
+    throw new Error("Invalid stat block.");
   for (const key of [
     "Speed",
     "DamageResistances",
@@ -291,7 +291,7 @@ function validateStat(s: StatBlock) {
       v !== undefined &&
       (!Array.isArray(v) || v.some((x) => typeof x !== "string"))
     )
-      throw new Error("Lista de ficha inválida.");
+      throw new Error("Invalid stat block list.");
   }
   for (const key of [
     "Traits",
@@ -310,14 +310,14 @@ function validateStat(s: StatBlock) {
             !x || typeof x.Name !== "string" || typeof x.Content !== "string",
         ))
     )
-      throw new Error("Ação de ficha inválida.");
+      throw new Error("Invalid stat block action.");
   }
   if (
     s.Abilities &&
     (typeof s.Abilities !== "object" ||
       Object.values(s.Abilities).some((x) => !Number.isFinite(x)))
   )
-    throw new Error("Atributos inválidos.");
+    throw new Error("Invalid abilities.");
 }
 export function validateState(input: unknown): State {
   const s = input as State;
@@ -328,7 +328,7 @@ export function validateState(input: unknown): State {
     !Array.isArray(s.spells) ||
     !Array.isArray(s.saved)
   )
-    throw new Error("Backup RoundKeep inválido.");
+    throw new Error("Invalid RoundKeep backup.");
   const validEncounter = (e: Encounter) => {
     if (
       !e ||
@@ -339,7 +339,7 @@ export function validateState(input: unknown): State {
       !Number.isInteger(e.round) ||
       e.round < 0
     )
-      throw new Error("Encontro inválido.");
+      throw new Error("Invalid encounter.");
     const ids = new Set();
     for (const c of e.combatants) {
       if (
@@ -356,16 +356,16 @@ export function validateState(input: unknown): State {
         c.hp > c.maxHp ||
         c.tempHp < 0
       )
-        throw new Error("Combatente inválido.");
+        throw new Error("Invalid combatant.");
       validateStat(c.stat);
       if (
         c.conditions.some((x) => typeof x !== "string") ||
         !["ally", "enemy"].includes(c.side)
       )
-        throw new Error("Condição ou lado inválido.");
+        throw new Error("Invalid condition or side.");
       ids.add(c.id);
     }
-    if (e.activeId && !ids.has(e.activeId)) throw new Error("Turno inválido.");
+    if (e.activeId && !ids.has(e.activeId)) throw new Error("Invalid turn.");
   };
   s.library.forEach(validateStat);
   validEncounter(s.encounter);
@@ -376,6 +376,6 @@ export function validateState(input: unknown): State {
     ) ||
     s.spells.some((x) => !x || typeof x.Name !== "string")
   )
-    throw new Error("Biblioteca inválida.");
+    throw new Error("Invalid library.");
   return structuredClone(s);
 }
