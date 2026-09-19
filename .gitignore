@@ -3,7 +3,9 @@ dist/
 private-data/
 *.log
 .DS_Store
-.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/*.mdc
 .agents/
 .impeccable/
 skills-lock.json

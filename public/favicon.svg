@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="rkGreen" x1="12" y1="14" x2="52" y2="56" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#4ade80"/>
-      <stop offset="1" stop-color="#16a34a"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="14" fill="#0a0a0a"/>
-  <path d="M12 16 H22 V22 H28 V16 H36 V22 H42 V16 H52 V36 C52 47 32 56 32 56 C32 56 12 47 12 36 Z" fill="url(#rkGreen)" stroke="#22c55e" stroke-width="2" stroke-linejoin="round"/>
-  <path d="M32 26 L41 38 H36 V48 H28 V38 H23 Z" fill="#0a0a0a" stroke="#0a0a0a" stroke-width="1.5" stroke-linejoin="round"/>
+  <style>
+    path, circle { fill: #3ecf8e; }
+    @media (prefers-color-scheme: light) {
+      path, circle { fill: #00c573; }
+    }
+  </style>
+  <path fill-rule="evenodd" d="M8 12 H20 V19 H26 V12 H38 V19 H44 V12 H56 V35 C56 48 32 58 32 58 C32 58 8 48 8 35 Z M32 23.5 A10.5 10.5 0 1 0 32.001 23.5 Z" fill="#3ecf8e"/>
+  <circle cx="32" cy="34" r="4.5" fill="#3ecf8e"/>
+  <path d="M30 34 H34 L32 25 Z" fill="#3ecf8e"/>
 </svg>

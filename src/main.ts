@@ -98,7 +98,7 @@ const icons: Record<string, any> = {
   Zap,
   Pencil,
 };
-const icon = (name: string, size = 18) =>
+const icon = (name: string, size = 14) =>
   createElement([
     "svg",
     {
@@ -137,7 +137,7 @@ function applyTheme() {
   const dark = themePreference === "dark" || (themePreference === "system" && themeMedia.matches);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   document.documentElement.style.colorScheme = dark ? "dark" : "light";
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#000000" : "#f5f5f5");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#121212" : "#fafafa");
 }
 function setThemePreference(value: ThemePreference) {
   themePreference = value;
@@ -433,7 +433,7 @@ function renderCommandList(q = "") {
   }${!actionRows && !recordRows ? `<p class="command-empty">No actions or stat blocks found.</p>` : ""}`;
 }
 function openCommand(seed = "") {
-  command.innerHTML = `<label class="command-search">${icon("Search", 16)}<input id="command-input" type="search" value="${esc(seed)}" placeholder="Search stat blocks or run an action…" aria-label="Search or run an action" autocomplete="off"><kbd>esc</kbd></label><div id="command-list" class="command-list" role="listbox">${renderCommandList(seed)}</div>`;
+  command.innerHTML = `<label class="command-search">${icon("Search", 14)}<input id="command-input" type="search" value="${esc(seed)}" placeholder="Search stat blocks or run an action…" aria-label="Search or run an action" autocomplete="off"><kbd>esc</kbd></label><div id="command-list" class="command-list" role="listbox">${renderCommandList(seed)}</div>`;
   if (!command.open) command.showModal();
   const input = command.querySelector<HTMLInputElement>("#command-input");
   input?.focus();
@@ -460,8 +460,8 @@ function render() {
     current = cs.find((c) => c.id === e.activeId),
     allies = cs.filter((c) => c.side === "ally"),
     enemies = cs.filter((c) => c.side === "enemy");
-  app.innerHTML = `<aside class="rail"><a class="brand-mark" href="/" aria-label="RoundKeep home" title="RoundKeep · Home"><svg viewBox="0 0 64 64" fill="none"><path d="M12 16 H22 V22 H28 V16 H36 V22 H42 V16 H52 V36 C52 47 32 56 32 56 C32 56 12 47 12 36 Z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M32 26 L41 38 H36 V48 H28 V38 H23 Z" fill="var(--rail-bg)" stroke="var(--rail-bg)" stroke-width="1.5" stroke-linejoin="round"/></svg></a><div class="rail-nav">${btn("view-combat", "", "Swords", "rail-button " + (view === "combat" ? "active" : ""), 'aria-label="Combat table" title="Combat table"')}${btn("view-saved", "", "Layers", "rail-button " + (view === "saved" ? "active" : ""), 'aria-label="Saved encounters" title="Saved encounters"')}${btn("notes", "", "ScrollText", "rail-button", 'aria-label="Encounter notes" title="Encounter notes"')}</div><div class="rail-bottom">${btn("help", "", "CircleHelp", "rail-button", 'aria-label="Help and shortcuts"')}${btn("settings", "", "Settings2", "rail-button", 'aria-label="Data and settings"')}<span class="profile" title="Dungeon Master">M</span></div></aside>
- <div class="workspace"><header class="topbar"><div class="topbar-context"><div class="wordmark">ROUNDKEEP</div><div class="breadcrumb">Your table ${icon("ChevronRight", 13)} <strong>${view === "saved" ? "Encounters" : "Current encounter"}</strong></div></div>${btn("open-command", "<span>Search or quick action…</span><kbd>⌘ K</kbd>", "Search", "command-trigger", 'aria-label="Open search and quick actions"')}<div class="top-actions"><span id="save-status" class="save-status"></span>${btn("player", "Player view", "Eye", "subtle")}${btn("settings", "", "Settings2", "icon-button", 'aria-label="Settings"')}</div></header>
+  app.innerHTML = `<aside class="rail"><a class="brand-mark" href="/" aria-label="RoundKeep home" title="RoundKeep · Home"><svg viewBox="0 0 64 64" fill="none"><path fill-rule="evenodd" d="M8 12 H20 V19 H26 V12 H38 V19 H44 V12 H56 V35 C56 48 32 58 32 58 C32 58 8 48 8 35 Z M32 23.5 A10.5 10.5 0 1 0 32.001 23.5 Z" fill="currentColor"/><circle cx="32" cy="34" r="4.5" fill="currentColor"/><path d="M30 34 H34 L32 25 Z" fill="currentColor"/></svg></a><div class="rail-nav">${btn("view-combat", "", "Swords", "rail-button " + (view === "combat" ? "active" : ""), 'aria-label="Combat table" title="Combat table"')}${btn("view-saved", "", "Layers", "rail-button " + (view === "saved" ? "active" : ""), 'aria-label="Saved encounters" title="Saved encounters"')}${btn("notes", "", "ScrollText", "rail-button", 'aria-label="Encounter notes" title="Encounter notes"')}</div><div class="rail-bottom">${btn("help", "", "CircleHelp", "rail-button", 'aria-label="Help and shortcuts"')}${btn("settings", "", "Settings2", "rail-button", 'aria-label="Data and settings"')}<span class="profile" title="Dungeon Master">M</span></div></aside>
+ <div class="workspace"><header class="topbar"><div class="topbar-context"><div class="wordmark">ROUND<span class="wordmark-dot">·</span>KEEP</div><div class="breadcrumb">Your table ${icon("ChevronRight", 13)} <strong>${view === "saved" ? "Encounters" : "Current encounter"}</strong></div></div>${btn("open-command", "<span>Search or quick action…</span><kbd>⌘ K</kbd>", "Search", "command-trigger", 'aria-label="Open search and quick actions"')}<div class="top-actions"><span id="save-status" class="save-status"></span>${btn("player", "Player view", "Eye", "subtle")}${btn("settings", "", "Settings2", "icon-button", 'aria-label="Settings"')}</div></header>
  <main><section class="page-heading"><div><h1>${view === "saved" ? "Your encounters" : esc(e.name)} ${view === "combat" ? btn("rename", "", "Pencil", "title-edit", 'aria-label="Rename encounter"') : ""}</h1></div><div class="heading-actions">${btn("save", "Save encounter", "Save", "secondary")}${btn("new", "New encounter", "Plus", "primary")}</div></section>
  ${
    view === "saved"
@@ -474,10 +474,10 @@ function render() {
          .map(([key, label]) => btn("tab", label, undefined, tab === key ? "selected" : "", `data-tab="${key}"`))
          .join(
            "",
-         )}</div><div class="library-search"><label class="searchbox">${icon("Search", 16)}<input id="search" type="search" value="${esc(query)}" placeholder="Search ${tab === "spells" ? "spells" : "library"}…" aria-label="Search library"><kbd>/</kbd></label><select id="source" aria-label="Filter source"><option value="all" ${source === "all" ? "selected" : ""}>All sources</option><option value="personal" ${source === "personal" ? "selected" : ""}>My library</option><option value="srd" ${source === "srd" ? "selected" : ""}>Basic rules (SRD)</option></select></div><div id="library-list" class="library-list">${renderLibrary()}</div><div class="library-footer">${icon("Database", 13)} Offline catalogue available <span>${allCreatures().length}</span></div></aside>
+         )}</div><div class="library-search"><label class="searchbox">${icon("Search", 14)}<input id="search" type="search" value="${esc(query)}" placeholder="Search ${tab === "spells" ? "spells" : "library"}…" aria-label="Search library"><kbd>/</kbd></label><select id="source" aria-label="Filter source"><option value="all" ${source === "all" ? "selected" : ""}>All sources</option><option value="personal" ${source === "personal" ? "selected" : ""}>My library</option><option value="srd" ${source === "srd" ? "selected" : ""}>Basic rules (SRD)</option></select></div><div id="library-list" class="library-list">${renderLibrary()}</div><div class="library-footer">${icon("Database", 13)} Offline catalogue available <span>${allCreatures().length}</span></div></aside>
  <section class="battle"><div class="battle-toolbar"><div class="round-icon">${icon("Swords", 18)}</div><div><h2>${e.started ? "Round " + String(e.round).padStart(2, "0") : "Initiative order"}</h2></div><div class="battle-buttons">${e.started ? btn("end-combat", "", "Pause", "icon-button", 'aria-label="End combat" title="End combat"') : ""}${btn("roll-initiative", "", "Dices", "icon-button", 'aria-label="Roll initiative" title="Roll initiative"')}${btn("undo", "", "RotateCcw", "icon-button", `aria-label="Undo last action" title="Undo" ${!history.length ? "disabled" : ""}`)}<span class="divider"></span>${btn("previous", "", "ChevronLeft", "icon-button", `aria-label="Previous turn" ${!e.started ? "disabled" : ""}`)}${btn("next", e.started ? "Next turn" : "Start combat", e.started ? "ChevronRight" : "Play", "primary", `${!cs.length ? "disabled" : ""} title="${e.started ? "Next turn (N)" : "Start combat"}"`)}</div></div>
  <div class="battle-summary"><span><i class="dot ally-dot"></i>${allies.length} allies</span><span><i class="dot enemy-dot"></i>${enemies.length} enemies</span><span class="summary-end">${icon("Users", 14)} ${cs.length} combatants</span></div>
- ${cs.length ? `<div class="table-labels"><span>Init</span><span>Combatant</span><span>HP</span><span>AC</span><span></span></div><div class="combatant-list">${cs.map((c) => renderCombatant(c, e.activeId === c.id)).join("")}</div><div class="add-combatant">${btn("create", "Add combatant", "Plus", "text-button")}${btn("add-party", "Add party", "Users", "text-button")}</div>` : `<div class="empty-combat"><h2>No combatants</h2><p>Use the + button in the library or add your party.</p><div>${btn("add-party", "Add party", "Users", "primary")}${btn("demo", "Open demo", undefined, "subtle")}</div></div>`}
+ ${cs.length ? `<div class="table-labels"><span>Init</span><span>Combatant</span><span>HP</span><span>AC</span><span></span></div><div class="combatant-list">${cs.map((c) => renderCombatant(c, e.activeId === c.id)).join("")}</div><div class="add-combatant">${btn("create", "Add combatant", "Plus", "text-button")}${btn("add-party", "Add party", "Users", "text-button")}</div>` : `<div class="empty-combat"><h2>No combatants</h2><p>Use the + button in the library or add your party.</p><div class="empty-actions">${btn("add-party", "Add party", "Users", "primary")}${btn("demo", "Open demo", undefined, "subtle")}</div></div>`}
  <div class="battle-bottom"><div class="encounter-note"><span>${icon("ScrollText", 15)} Notes</span>${btn("notes", e.notes ? esc(e.notes.slice(0, 95)) : "Add encounter notes", undefined, "note-preview")}</div><div class="session-log"><div><h3>Activity</h3>${btn("log", "View history", "ChevronRight", "text-button")}</div><p>${esc(e.log[0] || "No actions recorded.")}</p></div></div>
  <footer class="battle-footer"><span>${icon("Keyboard", 14)} <kbd>N</kbd> next turn <kbd>/</kbd> search <kbd>D</kbd> dice</span>${btn("dice", "Roll dice", "Dices", "text-button")}</footer></section><aside class="details panel">${renderDetails()}</aside></div>`
  }
@@ -1277,12 +1277,13 @@ command.addEventListener("mousemove", (event) => {
 window.addEventListener("online", () => render());
 window.addEventListener("offline", () => render());
 function renderPlayer(p: any) {
-  app.innerHTML = `<main class="player-screen"><div class="wordmark">ROUNDKEEP<span>Player view</span></div><p class="muted">${p.round ? "Round " + p.round : "Preparation"}</p><h1>${esc(p.name)}</h1><div class="player-list">${p.combatants.map((c: any) => `<article class="player-card ${c.id === p.activeId ? "current" : ""}"><span class="player-initiative">${num(c.initiative)}</span><div><h2>${esc(c.name)}</h2><p>${esc(c.health)}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}</p></div>${c.id === p.activeId ? '<span class="turn-label">Current turn</span>' : ""}</article>`).join("") || "<p>Waiting for combatants…</p>"}</div><p class="muted">Local sync · keep the DM table open in this browser.</p></main>`;
+  app.innerHTML = `<main class="player-screen"><div class="wordmark">ROUND<span class="wordmark-dot">·</span>KEEP<span class="wordmark-sub">Player view</span></div><p class="muted">${p.round ? "Round " + p.round : "Preparation"}</p><h1>${esc(p.name)}</h1><div class="player-list">${p.combatants.map((c: any) => `<article class="player-card ${c.id === p.activeId ? "current" : ""}"><span class="player-initiative">${num(c.initiative)}</span><div><h2>${esc(c.name)}</h2><p>${esc(c.health)}${c.conditions.length ? " · " + esc(c.conditions.join(", ")) : ""}</p></div>${c.id === p.activeId ? '<span class="turn-label">Current turn</span>' : ""}</article>`).join("") || "<p>Waiting for combatants…</p>"}</div><p class="muted">Local sync · keep the DM table open in this browser.</p></main>`;
 }
 async function init() {
   document.documentElement.classList.add("is-loading");
   if (playerMode) {
-    app.innerHTML = '<div class="boot">ROUNDKEEP<br><small>Waiting for the DM table…</small></div>';
+    app.innerHTML =
+      '<div class="boot">ROUND<span class="wordmark-dot">·</span>KEEP<br><small>Waiting for the DM table…</small></div>';
     channel.onmessage = (event) => {
       if (event.data.type === "state") renderPlayer(event.data.data);
     };
