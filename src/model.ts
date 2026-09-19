@@ -392,6 +392,40 @@ export function advance(e: Encounter, direction = 1) {
     tickTags(e, "start", e.activeId);
   }
 }
+export function quickAddCombatant(name: string, hp: number): Combatant {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Enter a name.");
+  if (!Number.isFinite(hp) || hp < 1)
+    throw new Error("Enter a positive HP value.");
+  return createCombatant(
+    {
+      Id: id(),
+      Name: trimmed,
+      Type: "Quick add",
+      HP: { Value: Math.floor(hp) },
+      AC: { Value: 10 },
+      InitiativeModifier: 0,
+    },
+    "enemy",
+  );
+}
+export function cleanEncounter(
+  e: Encounter,
+  characters: PersistentCharacter[],
+) {
+  const round = e.round;
+  const deadEnemies = e.combatants.filter(
+    (c) => c.side === "enemy" && c.hp === 0,
+  );
+  for (const dead of deadEnemies) removeCombatant(e, dead.id);
+  e.round = round;
+  for (const c of e.combatants) {
+    if (c.side !== "ally" && !c.persistentId) continue;
+    c.hp = c.maxHp;
+    c.tempHp = 0;
+    syncPersistentHp(characters, c);
+  }
+}
 export function removeCombatant(e: Encounter, combatantId: string) {
   const list = ordered(e),
     pos = list.findIndex((c) => c.id === combatantId);

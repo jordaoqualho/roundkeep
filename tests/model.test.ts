@@ -9,12 +9,14 @@ import {
   createCombatant,
   emptyEncounter,
   advance,
+  cleanEncounter,
   endConcentration,
   isConcentrating,
   linkInitiative,
   moveCombatant,
   ordered,
   reindexSort,
+  quickAddCombatant,
   removeCombatant,
   rollCombatantInitiative,
   roll,
@@ -316,6 +318,38 @@ test("concentration DC uses full damage including temp HP; fail strips concentra
   assert.equal(isConcentrating(c), false);
   assert.deepEqual(c.conditions, ["Poisoned"]);
   assert.equal(constitutionMod(c), 2);
+});
+
+test("quick add builds a nameless mook; clean strips dead enemies and restores ally HP", () => {
+  const mook = quickAddCombatant("Bandit", 12);
+  assert.equal(mook.name, "Bandit");
+  assert.equal(mook.hp, 12);
+  assert.equal(mook.ac, 10);
+  assert.equal(mook.side, "enemy");
+  assert.equal(mook.stat.Type, "Quick add");
+  assert.throws(() => quickAddCombatant("  ", 12));
+  assert.throws(() => quickAddCombatant("Bandit", 0));
+  const e = emptyEncounter();
+  const heroStat = { ...stat, Name: "Hero", Player: "player" };
+  const characters: PersistentCharacter[] = [];
+  const hero = upsertHeroFromStat(characters, heroStat, 4);
+  const pc = addHeroToEncounter(e, hero);
+  const dead = createCombatant(stat);
+  const living = createCombatant(stat);
+  dead.hp = 0;
+  living.hp = 3;
+  pc.tempHp = 2;
+  e.combatants.push(dead, living);
+  e.started = true;
+  e.round = 2;
+  e.activeId = dead.id;
+  cleanEncounter(e, characters);
+  assert.equal(e.combatants.some((c) => c.id === dead.id), false);
+  assert.equal(living.hp, 3);
+  assert.equal(pc.hp, pc.maxHp);
+  assert.equal(pc.tempHp, 0);
+  assert.equal(characters[0].currentHp, pc.maxHp);
+  assert.equal(e.round, 2);
 });
 
 test("legacy conditions strings migrate into untimed tags", () => {
