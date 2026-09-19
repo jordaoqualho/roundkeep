@@ -1,0 +1,9 @@
+node_modules/
+dist/
+private-data/
+*.log
+.DS_Store
+.cursor/
+.agents/
+.impeccable/
+skills-lock.json
