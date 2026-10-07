@@ -1600,6 +1600,12 @@ main {
   gap: 6px;
 }
 
+.app-footer a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .footer-diamond {
   display: none;
 }

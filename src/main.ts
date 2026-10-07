@@ -537,7 +537,7 @@ function render() {
  <div class="battle-bottom"><div class="encounter-note"><span>${icon("ScrollText", 15)} Notes</span>${btn("notes", e.notes ? esc(e.notes.slice(0, 95)) : "Add encounter notes", undefined, "note-preview")}</div><div class="session-log"><div><h3>Activity</h3>${btn("log", "View history", "ChevronRight", "text-button")}</div><p>${esc(e.log[0] || "No actions recorded.")}</p></div></div>
  <footer class="battle-footer"><span>${icon("Keyboard", 14)} <kbd>N</kbd> next turn <kbd>/</kbd> search <kbd>D</kbd> dice</span>${btn("dice", "Roll dice", "Dices", "text-button")}</footer></section><aside class="details panel">${renderDetails()}</aside></div>`
  }
- </main><footer class="app-footer"><span><i class="live-dot"></i> ${navigator.onLine ? "Local storage" : "Offline · data available"}</span><span>D&D 5e · SRD 2024</span></footer></div>`;
+ </main><footer class="app-footer"><span><i class="live-dot"></i> ${navigator.onLine ? "Local storage" : "Offline · data available"}</span><span>D&D 5e · SRD 2024</span><span>Site by <a href="https://jordaoqualho.com/" target="_blank" rel="noopener noreferrer">Jordão Qualho</a></span></footer></div>`;
   updateSaveStatus();
   enhanceSelects(app);
 }
